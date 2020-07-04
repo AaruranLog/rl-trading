@@ -9,7 +9,7 @@ from pandas_datareader import data
 import numpy as np
 import matplotlib.pyplot as plt
 import gym
-
+from warnings import warn
 
 # In[119]:
 
@@ -40,6 +40,7 @@ class TradingEnv(gym.Env):
         self.data = pd.DataFrame({'mean' : (self.prices - self.mu_hat) / self.sigma_hat})
         self.data['std'] = self.data['mean'].rolling(WINDOW_SIZE).std()
         self.data['sharpe'] = self.data['mean'].rolling(WINDOW_SIZE).mean() / self.data['std']
+        warn('Sharpe ratio will need a risk-free return in the future, for proper calculation.')
         self.short_time = 63
         self.long_time = 252
         exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean() # ???
