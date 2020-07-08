@@ -11,9 +11,6 @@ import matplotlib.pyplot as plt
 import gym
 from warnings import warn
 
-# In[119]:
-
-
 INITIAL_BALANCE = 10
 TRANSACTION_COST = 0.01
 WINDOW_SIZE = 60
@@ -22,7 +19,6 @@ DEFAULT_ACTIONS_LIST = [0]
 DEFAULT_REWARDS_LIST = [0]
 EXP_DECAY = 0.8
 class TradingEnv(gym.Env):
-    
     def __init__(self, ticker='AAPL', target_volatility=1, mode="train"):
         self.ticker = ticker
         self.window = pd.Timedelta(days=WINDOW_SIZE)
@@ -99,7 +95,41 @@ class TradingEnv(gym.Env):
         self.rewards_list = DEFAULT_REWARDS_LIST.copy()
         self.actions_list = DEFAULT_ACTIONS_LIST.copy()
         return self._get_current_state()
-    
+
+                
+    def step(self, action):
+        """
+            Executes an action in the stock environment, using 
+            the discrete action space described in: Deep Reinforcement Learning for Trading
+            
+            i.e. -1 is maximally short, 0 is no holdings, 1 is maximally long
+            Inputs: action (one of {-1,0,1})
+            Outputs: a tuple (observation/state, step_reward, is_done, info)
+        """
+        
+        next_price = self._get_normalized_price(diff=1)
+        price = self._get_normalized_price()
+        r = next_price - price
+        mu = 1
+        
+        sigma = self.data['std'][self.df_index - 1] 
+        sigma_prev = self.data['std'][self.df_index - 2]
+       
+        term1 = action * self.target_volatility * r / sigma
+        prev_action = self.actions_list[-1]
+        term2 = price * TRANSACTION_COST * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
+        R = mu*(term1 - term2)
+        
+        # TODO: Refactor rewards_list, actions_list into a pd.DataFrame so that
+        # 1. I can plot things more easily, and group them together by ticker, and episode number
+        # 2. I can collect rewards_list, actions_list into a single variable
+        
+        self.rewards_list.append(R)
+        self.actions_list.append(action)
+        self.df_index += 1
+        return self._get_current_state(), R, self._get_current_timestamp() > self.end, {}
+
+        
     def seed(self, seed=None):
         return
     
@@ -130,31 +160,3 @@ class TradingEnv(gym.Env):
                 return self.balance
             elif action == -1:
                 pass
-                
-    def step(self, action):
-        """
-            Executes an action in the stock environment, using 
-            the discrete action space described in: Deep Reinforcement Learning for Trading
-            
-            i.e. -1 is maximally short, 0 is no holdings, 1 is maximally long
-            Inputs: action (one of {-1,0,1})
-            Outputs: a tuple (observation/state, step_reward, is_done, info)
-        """
-        
-        next_price = self._get_normalized_price(diff=1)
-        price = self._get_normalized_price()
-        r = next_price - price
-        mu = 1
-        
-        sigma = self.data['std'][self.df_index - 1] 
-        sigma_prev = self.data['std'][self.df_index - 2]
-       
-        term1 = action * self.target_volatility * r / sigma
-        prev_action = self.actions_list[-1]
-        term2 = price * TRANSACTION_COST * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
-        R = mu*(term1 - term2)
-        
-        self.rewards_list.append(R)
-        self.actions_list.append(action)
-        self.df_index += 1
-        return self._get_current_state(), R, self._get_current_timestamp() > self.end, {}
