@@ -13,7 +13,7 @@ from warnings import warn
 
 INITIAL_BALANCE = 10
 TRANSACTION_COST = 0.01
-WINDOW_SIZE = 6
+WINDOW_SIZE = 60
 DELTA_DAY = pd.Timedelta(days=1)
 DEFAULT_ACTIONS_LIST = [0]
 DEFAULT_REWARDS_LIST = [0]
@@ -31,15 +31,15 @@ class TradingEnv(gym.Env):
         self.actions_list = DEFAULT_ACTIONS_LIST.copy()
         self.balance = INITIAL_BALANCE
         
-        self._compute_technical_indicators()
+        self._compute_simple_states()
         
-    def _compute_technical_indicators(self):
+    def _compute_simple_states(self):
         self.short_time = 63
         self.long_time = 252
         start, end = self.get_time_endpoints(self.mode)
         self.start = start
         self.end = end
-        prepadding =  pd.Timedelta(days=max([self.short_time + self.long_time, WINDOW_SIZE]) + 1) 
+        prepadding =  pd.Timedelta(days=self.short_time + self.long_time + WINDOW_SIZE + 1) 
         postpadding = self.window
         self.prices = data.DataReader(self.ticker, 'yahoo',
                                       start=start-prepadding, end=end+postpadding)['Close']
@@ -99,6 +99,12 @@ class TradingEnv(gym.Env):
             
             # Normalized, Additive Returns from previous WINDOW_SIZE
             state.append(n_price - old_price)
+            
+            q = self.data['q'][self.df_index - i]
+            state.append(q)
+            
+            macd = self.data['MACD'][self.df_index - i]
+            state.append(macd)
         return state
     
     def reset(self):
