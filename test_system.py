@@ -2,6 +2,8 @@ import pytest
 from system import TradingEnv
 from pandas_datareader._utils import RemoteDataError
 import numpy as np
+import math
+
 def test_create_env():
     env = TradingEnv()
     env.reset()
@@ -61,7 +63,19 @@ def test_action_succeeds():
     _ = env.step(0)
     _ = env.step(-1)
     _ = env.step(-1)
-
+    
+def test_reward():
+    env = TradingEnv()
+    env.reset()
+    _, R, __, ___ = env.step(1)
+    assert isinstance(R, float)
+    
+def test_state_valid():
+    env = TradingEnv()
+    state = env.reset()
+    for v in state:
+        assert not math.isnan(v), 'Found nan in state.'
+    
     
 # def test_filtered_stocks():
 #     ticker_list = []

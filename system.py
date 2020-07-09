@@ -13,7 +13,7 @@ from warnings import warn
 
 INITIAL_BALANCE = 10
 TRANSACTION_COST = 0.01
-WINDOW_SIZE = 60
+WINDOW_SIZE = 6
 DELTA_DAY = pd.Timedelta(days=1)
 DEFAULT_ACTIONS_LIST = [0]
 DEFAULT_REWARDS_LIST = [0]
@@ -24,33 +24,45 @@ class TradingEnv(gym.Env):
         self.window = pd.Timedelta(days=WINDOW_SIZE)
         assert mode in set(["train", "validation", "test", "dev"]), f"Invalid environment  mode: {mode}"
         self.mode = mode
-        # Time Series Features
-        start, end = self.get_time_endpoints(mode)
-        self.end = end
+       
+        self.target_volatility = target_volatility
+        self.returns_list = DEFAULT_REWARDS_LIST.copy()
+        self.rewards_list = DEFAULT_REWARDS_LIST.copy()
+        self.actions_list = DEFAULT_ACTIONS_LIST.copy()
+        self.balance = INITIAL_BALANCE
         
-        self.prices = data.DataReader(ticker, 'yahoo', start=start-12*self.window, end=end+self.window)['Close']
+        self._compute_technical_indicators()
+        
+    def _compute_technical_indicators(self):
+        self.short_time = 63
+        self.long_time = 252
+        start, end = self.get_time_endpoints(self.mode)
+        self.start = start
+        self.end = end
+        prepadding =  pd.Timedelta(days=max([self.short_time + self.long_time, WINDOW_SIZE]) + 1) 
+        postpadding = self.window
+        self.prices = data.DataReader(self.ticker, 'yahoo',
+                                      start=start-prepadding, end=end+postpadding)['Close']
+
         # We compute the mean, and standard deviation of the first WINDOW_SIZE days, and use this to standardize 
         # the entire time series.
         self.mu_hat = self.prices[:WINDOW_SIZE].mean()
         self.sigma_hat = self.prices[:WINDOW_SIZE].std()
         self.data = pd.DataFrame({'mean' : (self.prices - self.mu_hat) / self.sigma_hat})
         self.data['std'] = self.data['mean'].rolling(WINDOW_SIZE).std()
-        self.data['sharpe'] = self.data['mean'].rolling(WINDOW_SIZE).mean() / self.data['std']
-        warn('Sharpe ratio will need a risk-free return in the future, for proper calculation.')
-        self.short_time = 63
-        self.long_time = 252
+        # Use additive returns, because the reward is computed using the additive return
+        rets = (self.prices - self.prices.shift(1))
+
+        self.data['sharpe'] = rets.rolling(WINDOW_SIZE).mean() / rets.rolling(WINDOW_SIZE).std()
+#         warn('Sharpe ratio will need a risk-free return in the future, for proper calculation.')
+        
         exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean() # ???
         exp_long  = self.prices.ewm(span=self.long_time,  adjust=False).mean()  # ???
         self.data['q'] = (exp_short - exp_long) / self.prices.rolling(self.short_time).std()
         self.data['MACD'] = self.data['q'] / self.data['q'].rolling(self.long_time).std()
         
-        self.df_index = WINDOW_SIZE # to look up current price from self.data, irrespective of the date break due to the weekend
-        
-        self.target_volatility = target_volatility
-        self.returns_list = DEFAULT_REWARDS_LIST.copy()
-        self.rewards_list = DEFAULT_REWARDS_LIST.copy()
-        self.actions_list = DEFAULT_ACTIONS_LIST.copy()
-        self.balance = INITIAL_BALANCE
+        # to look up current price from self.data, irrespective of the date break due to the weekend
+        self.df_index = self.data.index.get_loc(self.start)
         
         
     def get_time_endpoints(self, mode):
@@ -58,7 +70,7 @@ class TradingEnv(gym.Env):
             Start must be in Monday - Friday
         """
         if mode == "train":
-            return pd.Timestamp('2016-01-04'), pd.Timestamp('2016-12-31')
+            return pd.Timestamp('2016-01-04'), pd.Timestamp('2018-12-31')
         elif mode == "dev":
             return pd.Timestamp('2016-01-04'), pd.Timestamp('2016-02-28')
         else:
@@ -71,7 +83,7 @@ class TradingEnv(gym.Env):
         return self.data['mean'][self.df_index + diff]
         
     def _get_current_timestamp(self):
-        return pd.Timestamp(self.data.index[self.df_index])
+        return self.data.index[self.df_index]
     
     def _get_current_state(self):
         state = []
@@ -90,7 +102,7 @@ class TradingEnv(gym.Env):
         return state
     
     def reset(self):
-        self.df_index = WINDOW_SIZE
+        self.df_index = self.data.index.get_loc(self.start)  
         self.returns_list = DEFAULT_REWARDS_LIST.copy()
         self.rewards_list = DEFAULT_REWARDS_LIST.copy()
         self.actions_list = DEFAULT_ACTIONS_LIST.copy()
