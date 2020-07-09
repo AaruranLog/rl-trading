@@ -106,7 +106,7 @@ class TradingEnv(gym.Env):
             Inputs: action (one of {-1,0,1})
             Outputs: a tuple (observation/state, step_reward, is_done, info)
         """
-        
+        assert action in [-1, 0, 1], f"Got {action} but expected one of {-1, 0, 1}"
         next_price = self._get_normalized_price(diff=1)
         price = self._get_normalized_price()
         r = next_price - price

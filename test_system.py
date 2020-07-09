@@ -33,6 +33,35 @@ def test_apple_download():
 def test_CELG_download_fails():
     with pytest.raises(RemoteDataError):
         basic_loop('CELG')
+        
+def test_action_error_float():
+    env = TradingEnv()
+    env.reset()
+    with pytest.raises(AssertionError):
+        env.step(0.99999)
+        
+def test_action_error_list():
+    env = TradingEnv()
+    env.reset()
+    with pytest.raises(AssertionError):
+        env.step([0])
+        
+def test_action_error_list():
+    env = TradingEnv()
+    env.reset()
+    with pytest.raises(AssertionError):
+        env.step([0])        
+        
+def test_action_succeeds():
+    env = TradingEnv()
+    env.reset()
+    _ = env.step(1)
+    _ = env.step(-1)
+    _ = env.step(0)
+    _ = env.step(0)
+    _ = env.step(-1)
+    _ = env.step(-1)
+
     
 # def test_filtered_stocks():
 #     ticker_list = []
