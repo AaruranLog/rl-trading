@@ -13,7 +13,7 @@ from warnings import warn
 
 INITIAL_BALANCE = 10
 TRANSACTION_COST = 0.01
-WINDOW_SIZE = 60
+WINDOW_SIZE = 14
 DELTA_DAY = pd.Timedelta(days=1)
 DEFAULT_ACTIONS_LIST = [0]
 DEFAULT_REWARDS_LIST = [0]
@@ -38,7 +38,10 @@ class TradingEnv(gym.Env):
         start, end = self.get_time_endpoints(self.mode)
         self.start = start
         self.end = end
-        prepadding =  pd.Timedelta(days=self.short_time + self.long_time + WINDOW_SIZE + 1) 
+        # 81 needs to be added for some reason to make sure MACD is a number ???
+#         warn("Using unexplained extra pre-padding.")
+        unexplained = 0
+        prepadding =  pd.Timedelta(days=self.short_time + self.long_time + WINDOW_SIZE + 1 + unexplained)
         postpadding = self.window
         self.prices = data.DataReader(self.ticker, 'yahoo',
                                       start=start-prepadding, end=end+postpadding)['Close']
@@ -55,10 +58,10 @@ class TradingEnv(gym.Env):
         self.data['sharpe'] = rets.rolling(WINDOW_SIZE).mean() / rets.rolling(WINDOW_SIZE).std()
 #         warn('Sharpe ratio will need a risk-free return in the future, for proper calculation.')
         
-        exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean() # ???
-        exp_long  = self.prices.ewm(span=self.long_time,  adjust=False).mean()  # ???
+        exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean()
+        exp_long  = self.prices.ewm(span=self.long_time,  adjust=False).mean()
         self.data['q'] = (exp_short - exp_long) / self.prices.rolling(self.short_time).std()
-        self.data['MACD'] = self.data['q'] / self.data['q'].rolling(self.long_time).std()
+#         self.data['MACD'] = self.data['q'] / self.data['q'].rolling(self.long_time).std()
         
         # to look up current price from self.data, irrespective of the date break due to the weekend
         self.df_index = self.data.index.get_loc(self.start)
@@ -85,25 +88,28 @@ class TradingEnv(gym.Env):
         return self.data.index[self.df_index]
     
     def _get_current_state(self):
-        state = []
-        for i in range(WINDOW_SIZE):
-            n_price = self._get_normalized_price(diff=-i)
-            state.append(n_price)
+        i = self.df_index
+        indicators = self.data[['mean', 'std', 'sharpe', 'q']][(i-WINDOW_SIZE):i]
+        state = indicators.values.reshape(-1).tolist()
+#         state = []
+#         for i in range(WINDOW_SIZE):
+#             n_price = self._get_normalized_price(diff=-i)
+#             state.append(n_price)
             
-            old_price = self._get_normalized_price(diff=-(i + WINDOW_SIZE))
-            state.append(old_price)
+#             old_price = self._get_normalized_price(diff=-(i + WINDOW_SIZE))
+#             state.append(old_price)
             
-            sharpe_ratio = self.data['sharpe'][self.df_index - i]
-            state.append(sharpe_ratio)
+#             sharpe_ratio = self.data['sharpe'][self.df_index - i]
+#             state.append(sharpe_ratio)
             
-            # Normalized, Additive Returns from previous WINDOW_SIZE
-            state.append(n_price - old_price)
+#             # Normalized, Additive Returns from previous WINDOW_SIZE
+#             state.append(n_price - old_price)
             
-            q = self.data['q'][self.df_index - i]
-            state.append(q)
+#             q = self.data['q'][self.df_index - i]
+#             state.append(q)
             
-            macd = self.data['MACD'][self.df_index - i]
-            state.append(macd)
+# #             macd = self.data['MACD'][self.df_index - i]
+# #             state.append(macd)
         return state
     
     def reset(self):
@@ -129,23 +135,31 @@ class TradingEnv(gym.Env):
         r = next_price - price
         mu = 1
         
-        sigma = self.data['std'][self.df_index - 1] 
-        sigma_prev = self.data['std'][self.df_index - 2]
+#         sigma = self.data['std'][self.df_index - 1]
+#         sigma_prev = self.data['std'][self.df_index - 2]
        
-        term1 = action * self.target_volatility * r / sigma
-        prev_action = self.actions_list[-1]
-        term2 = price * TRANSACTION_COST * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
-        R = mu*(term1 - term2)
+#         term1 = action * self.target_volatility * r / sigma
+#         prev_action = self.actions_list[-1]
+#         term2 = price * TRANSACTION_COST * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
+#         R = mu*(term1 - term2)
+#         self.rewards_list.append(R)
         
+        # Additive Returns as reward function
+        if action == 1:
+            R = r
+        elif action == -1:
+            R = -r
+        elif action == 0:
+            R = 0
+    
         # TODO: Refactor rewards_list, actions_list into a pd.DataFrame so that
         # 1. I can plot things more easily, and group them together by ticker, and episode number
         # 2. I can collect rewards_list, actions_list into a single variable
         
-        self.rewards_list.append(R)
+        
         self.actions_list.append(action)
         self.df_index += 1
         return self._get_current_state(), R, self._get_current_timestamp() > self.end, {}
-
         
     def seed(self, seed=None):
         return
