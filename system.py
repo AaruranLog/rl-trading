@@ -24,7 +24,6 @@ class TradingEnv(gym.Env):
         self.window = pd.Timedelta(days=WINDOW_SIZE)
         assert mode in set(["train", "validation", "test", "dev"]), f"Invalid environment  mode: {mode}"
         self.mode = mode
-       
         self.target_volatility = target_volatility
         self.returns_list = DEFAULT_REWARDS_LIST.copy()
         self.rewards_list = DEFAULT_REWARDS_LIST.copy()
