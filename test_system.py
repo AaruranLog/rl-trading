@@ -6,7 +6,7 @@ import math
 
 
 def test_create_env():
-    env = TradingEnv()
+    env = TradingEnv(mode='dev')
     env.reset()
     _ = env.step(1)
     assert len(env.prices) == len(env.data["mean"])
@@ -19,18 +19,17 @@ def basic_loop(t):
     done = False
     np.random.seed(885)
     while not done:
-        # for i in range(14):
         action = np.random.randint(low=-1, high=2)
         next_state, r, done, _ = env.step(action)
         assert len(state) == len(next_state)
 
 
-# basic_loop_test('AAPL')
-def test_stock_name_file_exists():
-    ticker_list = []
-    with open("./small_stock_name.txt") as src:
-        ticker_list = src.read().split()
-    assert len(ticker_list) == 82
+# # basic_loop_test('AAPL')
+# def test_stock_name_file_exists():
+#     ticker_list = []
+#     with open("./small_stock_name.txt") as src:
+#         ticker_list = src.read().split()
+#     assert len(ticker_list) == 82
 
 
 def test_apple_download():
@@ -43,28 +42,28 @@ def test_CELG_download_fails():
 
 
 def test_action_error_float():
-    env = TradingEnv()
+    env = TradingEnv(mode='dev')
     env.reset()
     with pytest.raises(AssertionError):
         env.step(0.99999)
 
 
 def test_action_error_list():
-    env = TradingEnv()
+    env = TradingEnv(mode='dev')
     env.reset()
     with pytest.raises(AssertionError):
         env.step([0])
 
 
 def test_action_error_list():
-    env = TradingEnv()
+    env = TradingEnv(mode='dev')
     env.reset()
     with pytest.raises(AssertionError):
         env.step([0])
 
 
 def test_action_succeeds():
-    env = TradingEnv()
+    env = TradingEnv(mode='dev')
     env.reset()
     _ = env.step(1)
     _ = env.step(-1)
@@ -75,19 +74,27 @@ def test_action_succeeds():
 
 
 def test_reward():
-    env = TradingEnv()
+    env = TradingEnv(mode='dev')
     env.reset()
     _, R, __, ___ = env.step(1)
     assert isinstance(R, float)
 
 
 def test_state_valid():
-    env = TradingEnv()
+    env = TradingEnv(mode='dev')
     state = env.reset()
     for v in state:
         assert not math.isnan(v), "Found nan in state."
 
+        
+# def test_ticker_foxa():
+# '''
+#     For some reason, this test fails. Need further analysis
+# '''
+#     env = TradingEnv(ticker='FOXA')
 
+    
+    
 # def test_filtered_stocks():
 #     ticker_list = []
 #     with open('./small_stock_name.txt') as src:
