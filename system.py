@@ -81,6 +81,8 @@ class TradingEnv(gym.Env):
             return pd.Timestamp('2014-01-06'), pd.Timestamp('2017-12-31')
         elif mode == "dev":
             return pd.Timestamp('2014-01-06'), pd.Timestamp('2014-12-28')
+        elif mode == "test":
+            return pd.Timestamp('2018-01-01'), pd.Timestamp('2018-12-31')
         else:
             raise NotImplementedError()
         
