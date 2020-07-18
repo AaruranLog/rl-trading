@@ -15,7 +15,6 @@ INITIAL_BALANCE = 10
 TRANSACTION_COST = 0.01 # per share
 WINDOW_SIZE = 14
 DELTA_DAY = pd.Timedelta(days=1)
-EXP_DECAY = 0.8
 class TradingEnv(gym.Env):
     def __init__(self, ticker='AAPL', target_volatility=10, mode="train"):
         self.ticker = ticker
@@ -35,9 +34,11 @@ class TradingEnv(gym.Env):
         start, end = self.get_time_endpoints(self.mode)
         self.start = start
         self.end = end
+        
         # 81 needs to be added for some reason to make sure MACD is a number ???
-#         warn("Using unexplained extra pre-padding.")
-        unexplained = 0
+        unexplained = 81
+#         if unexplained:
+#             warn("Using unexplained extra pre-padding.")
         prepadding =  pd.Timedelta(days=self.short_time + self.long_time + WINDOW_SIZE + 1 + unexplained)
         postpadding = self.window
         self.prices = data.DataReader(self.ticker, 'yahoo',
@@ -45,7 +46,7 @@ class TradingEnv(gym.Env):
 
         # We compute the mean, and standard deviation of the first WINDOW_SIZE days, and use this to standardize 
         # the entire time series.
-        assert WINDOW_SIZE > 5, "WINDOW_SIZE is too small for rolling computations to be meaningful"
+        assert WINDOW_SIZE > 1, "WINDOW_SIZE is too small for rolling computations to be meaningful"
         self.mu_hat = self.prices[:WINDOW_SIZE].mean()
         self.sigma_hat = self.prices[:WINDOW_SIZE].std()
         self.data = pd.DataFrame({'mean' : (self.prices - self.mu_hat) / self.sigma_hat})
@@ -53,21 +54,20 @@ class TradingEnv(gym.Env):
         # Use additive returns, because the reward is computed using the additive return
         rets = (self.prices - self.prices.shift(1))
 
-#         self.data['sharpe'] = rets.rolling(WINDOW_SIZE).mean() / rets.rolling(WINDOW_SIZE).std()
+        self.data['sharpe'] = rets.rolling(WINDOW_SIZE).mean() / rets.rolling(WINDOW_SIZE).std()
 #         warn('Sharpe ratio will need a risk-free return in the future, for proper calculation.')
         
-#         exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean()
-#         exp_long  = self.prices.ewm(span=self.long_time,  adjust=False).mean()
-#         self.data['q'] = (exp_short - exp_long) # / self.prices.rolling(self.short_time).std()
+        exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean()
+        exp_long  = self.prices.ewm(span=self.long_time,  adjust=False).mean()
+        self.data['q'] = (exp_short - exp_long) # / self.prices.rolling(self.short_time).std()
         
-#         macd = ti.macd(self.data['mean'].values, short_period=self.short_time,
-#                        long_period=self.long_time, signal_period=WINDOW_SIZE)
+        macd = ti.macd(self.data['mean'].values, short_period=self.short_time,
+                       long_period=self.long_time, signal_period=WINDOW_SIZE)
 
-# #         self.data['MACD'] = self.data['q'] / self.data['q'].rolling(self.long_time).std()
-#         self.data['macd_0'] = self.data['macd_1'] = self.data['macd_2'] = np.nan
-#         self.data['macd_0'][self.long_time-1:] = macd[0]
-#         self.data['macd_1'][self.long_time-1:] = macd[1]
-#         self.data['macd_2'][self.long_time-1:] = macd[2]
+        self.data['macd_0'] = self.data['macd_1'] = self.data['macd_2'] = np.nan
+        self.data['macd_0'][self.long_time-1:] = macd[0]
+        self.data['macd_1'][self.long_time-1:] = macd[1]
+        self.data['macd_2'][self.long_time-1:] = macd[2]
        
         # to look up current price from self.data, irrespective of the date break due to the weekend
         self.df_index = self.data.index.get_loc(self.start)
