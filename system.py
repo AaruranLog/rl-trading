@@ -26,7 +26,6 @@ class TradingEnv(gym.Env):
         self.returns_list = []
         self.rewards_list = []
         self.actions_list = [0]
-#         self.balance = INITIAL_BALANCE
         
         self._compute_simple_states()
         
@@ -191,18 +190,22 @@ class TradingWithRedditEnv(TradingEnv):
         self.text_embeddings = text
         stocks = self.data[self.df_index:]
         stocks['date'] = stocks.index
-        self.embedding_lookup = pd.merge(stocks, text, how='left')[['date', 'embeddings']]
+        self.embedding_lookup = pd.merge(stocks, text,
+                                         how='left')[['date', 'embeddings']]
     
     def _get_current_embeddings(self):
         date = self._get_date()
         daily_data = self.embedding_lookup.loc[self.embedding_lookup.date == date]
+#         raw_values = daily_data.embeddings.apply(ast.literal_eval).values
         raw_values = daily_data.embeddings.values
         vectors = []
-        for v in raw_values:
-            if np.isnan(v):
-                vectors.append((np.zeros(50)))
-            else:
+        for s in raw_values:
+            try:
+                v = ast.literal_eval(s)
                 vectors.append(v)
+            except:
+                vectors.append((np.zeros(50)))
+            
         return vectors
         
     def _get_current_state(self):
