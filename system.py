@@ -24,7 +24,7 @@ class TradingEnv(gym.Env):
         self.target_volatility = target_volatility
         self.returns_list = []
         self.rewards_list = []
-        self.actions_list = [0]
+        self.actions_list = []
         
         self._compute_simple_states()
         
@@ -70,12 +70,13 @@ class TradingEnv(gym.Env):
         self.data['macd_2'][self.long_time-1:] = macd[2]
        
         # to look up current price from self.data, irrespective of the date break due to the weekend
-        self.df_index = self.data.index.get_loc(self.start)
+        self.df_initial_index = self.data.index.get_loc(self.start)
+        self.df_index = self.df_initial_index
         
         
     def get_time_endpoints(self, mode):
         """
-            Start must be in Monday - Friday
+            Start must be in Monday - Friday (??)
         """
         if mode == "train":
             return pd.Timestamp('2014-01-06'), pd.Timestamp('2017-12-31')
@@ -100,7 +101,7 @@ class TradingEnv(gym.Env):
 #         indicators = self.data[['mean', 'std', 'sharpe', 'q']][(i-WINDOW_SIZE):i]
 #         indicators = self.data[['mean', 'std', 'sharpe']][(i-WINDOW_SIZE):i]
 #         indicators = self.data[['mean', 'std']][(i-WINDOW_SIZE):i]
-        indicators = self.data[(i-WINDOW_SIZE):i]
+        indicators = self.data[(i-WINDOW_SIZE+1):i+1]
         return indicators.values.reshape(-1).tolist()
         
     def _get_current_state(self):
@@ -110,10 +111,10 @@ class TradingEnv(gym.Env):
         return self.data.index[self.df_index + diff]
 
     def reset(self):
-        self.df_index = self.data.index.get_loc(self.start)  
+        self.df_index = self.df_initial_index
         self.returns_list = []
         self.rewards_list = []
-        self.actions_list = [0]
+        self.actions_list = []
         return self._get_current_state()
 
     def _compute_reward_function(self, action):
@@ -123,21 +124,22 @@ class TradingEnv(gym.Env):
         r = next_price - price
         mu = 1
         
-        sigma = self.data['std'][self.df_index - 1]
-        sigma_prev = self.data['std'][self.df_index - 2]
+        sigma = self.data['std'][self.df_index]
+        sigma_prev = self.data['std'][self.df_index - 1]
        
-        term1 = action * self.target_volatility * r / sigma
-        prev_action = self.actions_list[-1]
-        term2 = price * TRANSACTION_COST * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
-        R = mu*(term1 - term2)
+#         term1 = action * self.target_volatility * r / sigma
+#         prev_action = self.actions_list[-1] if len(self.actions_list) > 0 else 0
+#         term2 = price * TRANSACTION_COST * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
+#         R = mu*(term1 - term2)
+
+        # Additive Returns as reward function
+        if action == 1:
+            R = r - TRANSACTION_COST
+        elif action == -1:
+            R = -r - TRANSACTION_COST
+        elif action == 0:
+            R = 0 - TRANSACTION_COST
         self.rewards_list.append(R)
-        # # Additive Returns as reward function
-        # if action == 1:
-        #     R = r - TRANSACTION_COST
-        # elif action == -1:
-        #     R = -r - TRANSACTION_COST
-        # elif action == 0:
-        #     R = 0 - TRANSACTION_COST
         return R
     
     def step(self, action):
@@ -161,27 +163,45 @@ class TradingEnv(gym.Env):
         return
     
     def close(self):
-        return
+        final_date = self.data.index[self.data.index >= self.end][0]
+        final_index =  self.data.index.get_loc(final_date)
+        dates = self.data.index[self.df_initial_index:final_index]
+        tickers = [self.ticker] * len(self.actions_list)
+        prices = self.prices[self.df_initial_index:final_index]
+        assert len(tickers) == len(dates) == len(prices) == len(self.rewards_list)
+        history = pd.DataFrame({'date'   : dates,
+                                'ticker' : tickers,
+                               'rewards' : self.rewards_list,
+                               'actions' : self.actions_list,
+                               'returns' : self.compute_returns(),
+                               'prices'  : prices})
+        return history
     
-    def compute_returns():
+    def compute_returns(self):
         self.returns_list = []
         values = [INITIAL_BALANCE]
         cumulative_costs = [0]
-        episode_length = (self.end - self.start).days
+        episode_length = len(self.actions_list)
+        prev_a = 0
         for i in range(episode_length):
             past_value = values[-1]
             a = self.actions_list[i]
-            prev_a = self.actions_list[i-1]
-            current_price = self._get_raw_price(i)
-            next_price = self._get_raw_price(i+1)
-            
+            current_price = self.prices[self.df_initial_index + i]
+            next_price =  self.prices[self.df_initial_index + i + 1]
             cost_of_trade = abs(prev_a - a) * TRANSACTION_COST * past_value / current_price
             cumulative_costs.append(cost_of_trade + cumulative_costs[-1])
             
             change_in_value = (next_price / current_price - 1) * a * past_value
+            if a == -1:
+                max_return_from_short = past_value
+                change_in_value = min([change_in_value, max_return_from_short])
             new_value = past_value + change_in_value
             values.append(new_value)
-            self.returns_list.append(values[-1] / cumulative_costs[-1])
+            roi = 0 if (new_value == INITIAL_BALANCE) else (new_value - INITIAL_BALANCE) / cumulative_costs[-1]
+            self.returns_list.append(roi)
+            
+            prev_a = a
+            
         return self.returns_list
             
 class TradingWithRedditEnv(TradingEnv):

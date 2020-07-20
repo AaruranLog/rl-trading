@@ -18,11 +18,12 @@ def basic_loop(t):
     env = TradingEnv(ticker=t)
     state = env.reset()
     done = False
-    np.random.seed(885)
     while not done:
         action = np.random.randint(low=-1, high=2)
         next_state, r, done, _ = env.step(action)
         assert len(state) == len(next_state)
+    _ = env.compute_returns()
+    h = env.close()
 
 
 def test_apple_download():
@@ -92,12 +93,13 @@ def basic_loop_with_text(t):
     state, text_vectors = env.reset()
     assert isinstance(text_vectors, list), f"Expected list, but got {type(vectors)}"
     done = False
-    np.random.seed(885)
     while not done:
         action = np.random.randint(low=-1, high=2)
         (next_state, next_text), r, done, _ = env.step(action)
         assert len(state) == len(next_state)
         assert isinstance(next_text, list), f"Expected list, but got {type(vectors)}"
+    _ = env.compute_returns()
+    h = env.close()
         
 def test_reddit_loop():
     basic_loop_with_text('aapl')
