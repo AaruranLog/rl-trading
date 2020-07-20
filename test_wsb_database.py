@@ -14,10 +14,10 @@ def test_basic_query():
         "select body from wsb where date = '2016-01-01' limit 1", conn
     )
 
+
 def test_wsb_db_aapl():
-    _ = get_all_embeddings('AAPL')
+    _ = get_all_embeddings("AAPL")
+
 
 def test_wsb_db_tsla():
-    _ = get_all_embeddings('TSLA')
-    
-
+    _ = get_all_embeddings("TSLA")

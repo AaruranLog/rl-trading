@@ -9,7 +9,6 @@ from sqlalchemy import create_engine
 from tqdm import tqdm
 
 
-
 def lookup_sentence_embedding(text):
     tokens = text.split(" ")
     word_vectors = np.array([ft.get_word_vector(t) for t in tokens])
@@ -42,7 +41,6 @@ def get_all_embeddings(ticker):
     return df
 
 
-
 DATABASE_URI = "sqlite:///ft_database.db"
 if __name__ == "__main__":
     chunksize = 10 ** 4
@@ -58,4 +56,3 @@ if __name__ == "__main__":
     for chunk in tqdm(wsb):
         cleaned_chunk = create_comment_vectors(chunk)
         cleaned_chunk.to_sql("wsb", db, if_exists="append", index=False)
-

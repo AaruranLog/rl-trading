@@ -86,7 +86,7 @@ def test_state_valid_text():
     state, text = env.reset()
     for v in state:
         assert not math.isnan(v), "Found nan in state."
-        
+
 
 def basic_loop_with_text(t):
     env = TradingWithRedditEnv(ticker=t)
@@ -100,7 +100,8 @@ def basic_loop_with_text(t):
         assert isinstance(next_text, list), f"Expected list, but got {type(vectors)}"
     _ = env.compute_returns()
     h = env.close()
-        
+
+
 def test_reddit_loop():
-    basic_loop_with_text('aapl')
-    basic_loop_with_text('tsla')
+    basic_loop_with_text("aapl")
+    basic_loop_with_text("tsla")
