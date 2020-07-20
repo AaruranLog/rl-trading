@@ -9,18 +9,21 @@ import tulipy as ti
 from sqlalchemy import create_engine
 import ast
 import re
+import warnings
 from wsb_pipeline import get_all_embeddings
 
-INITIAL_BALANCE = 10
-TRANSACTION_COST = 0.5  # per share
-WINDOW_SIZE = 14
-DELTA_DAY = pd.Timedelta(days=1)
+
 
 
 class TradingEnv(gym.Env):
+    INITIAL_BALANCE = 1
+    TRANSACTION_COST = 0.01  # per share
+    WINDOW_SIZE = 6
+#     DELTA_DAY = pd.Timedelta(days=1)
+    
     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
         self.ticker = ticker
-        self.window = pd.Timedelta(days=WINDOW_SIZE)
+        self.window = pd.Timedelta(days=self.WINDOW_SIZE)
         assert mode in set(
             ["train", "validation", "test", "dev"]
         ), f"Invalid environment  mode: {mode}"
@@ -29,7 +32,7 @@ class TradingEnv(gym.Env):
         self.returns_list = []
         self.rewards_list = []
         self.actions_list = []
-        self.values = [INITIAL_BALANCE]
+        self.values = [self.INITIAL_BALANCE]
         self.cumulative_costs = [0]
 
         self._compute_simple_states()
@@ -46,7 +49,7 @@ class TradingEnv(gym.Env):
         #         if unexplained:
         #             warn("Using unexplained extra pre-padding.")
         prepadding = pd.Timedelta(
-            days=self.short_time + self.long_time + WINDOW_SIZE + 1 + unexplained
+            days=self.short_time + self.long_time + self.WINDOW_SIZE + 1 + unexplained
         )
         postpadding = self.window
         self.prices = data.DataReader(
@@ -56,20 +59,20 @@ class TradingEnv(gym.Env):
         # We compute the mean, and standard deviation of the first WINDOW_SIZE days, and use this to standardize
         # the entire time series.
         assert (
-            WINDOW_SIZE > 1
+            self.WINDOW_SIZE > 1
         ), "WINDOW_SIZE is too small for rolling computations to be meaningful"
-        self.mu_hat = self.prices[:WINDOW_SIZE].mean()
-        self.sigma_hat = self.prices[:WINDOW_SIZE].std()
+        self.mu_hat = self.prices[:self.WINDOW_SIZE].mean()
+        self.sigma_hat = self.prices[:self.WINDOW_SIZE].std()
 
         self.data = pd.DataFrame({"x": (self.prices - self.mu_hat) / self.sigma_hat})
         self.data["logx"] = np.log(self.prices)
 
-        self.data["std"] = self.data["x"].rolling(WINDOW_SIZE).std()
+        self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
         # Use additive returns, because the reward is computed using the additive return
         rets = self.prices - self.prices.shift(1)
 
         self.data["sharpe"] = (
-            rets.rolling(WINDOW_SIZE).mean() / rets.rolling(WINDOW_SIZE).std()
+            rets.rolling(self.WINDOW_SIZE).mean() / rets.rolling(self.WINDOW_SIZE).std()
         )
 
         exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean()
@@ -82,7 +85,7 @@ class TradingEnv(gym.Env):
             self.data["x"].values,
             short_period=self.short_time,
             long_period=self.long_time,
-            signal_period=WINDOW_SIZE,
+            signal_period=self.WINDOW_SIZE,
         )
 
         self.data["macd_0"] = self.data["macd_1"] = self.data["macd_2"] = np.nan
@@ -118,7 +121,7 @@ class TradingEnv(gym.Env):
 
     def _get_melted_technical_indicators(self):
         i = self.df_index
-        indicators = self.data[(i - WINDOW_SIZE + 1) : i + 1]
+        indicators = self.data[(i - self.WINDOW_SIZE + 1) : i + 1]
         return indicators.values.reshape(-1).tolist()
 
     def _get_current_state(self):
@@ -132,7 +135,7 @@ class TradingEnv(gym.Env):
         self.returns_list = []
         self.rewards_list = []
         self.actions_list = []
-        self.values = [INITIAL_BALANCE]
+        self.values = [self.INITIAL_BALANCE]
         self.cumulative_costs = [0]
         return self._get_current_state()
 
@@ -148,7 +151,7 @@ class TradingEnv(gym.Env):
         prev_action = self.actions_list[-1] if len(self.actions_list) > 0 else 0
         term2 = (
             price
-            * TRANSACTION_COST
+            * self.TRANSACTION_COST
             * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
         )
         R = mu * (term1 - term2)
@@ -216,7 +219,7 @@ class TradingEnv(gym.Env):
         next_price = self._get_normalized_price(diff=1)
         prev_a = self.actions_list[-1] if len(self.actions_list) > 0 else 0
 
-        cost_of_trade = abs(prev_a - a) * TRANSACTION_COST * past_value / current_price
+        cost_of_trade = abs(prev_a - a) * self.TRANSACTION_COST * past_value / current_price
         self.cumulative_costs.append(cost_of_trade + self.cumulative_costs[-1])
         change_in_value = (next_price / current_price - 1) * a * past_value
         if a == -1:
@@ -226,14 +229,14 @@ class TradingEnv(gym.Env):
         self.values.append(new_value)
         roi = (
             0
-            if (new_value == INITIAL_BALANCE)
-            else (new_value - INITIAL_BALANCE) / self.cumulative_costs[-1]
+            if (new_value == self.INITIAL_BALANCE)
+            else (new_value - self.INITIAL_BALANCE) / self.cumulative_costs[-1]
         )
         
-        if new_value < 5 * TRANSACTION_COST:
-            print("Warning: low portfolio value")
+        if new_value < 5 * self.TRANSACTION_COST:
+            warnings.warn(f"Low portfolio value {new_value}")
         if new_value <= 0:
-            print("Warning: Agent fucked up; no money left!")
+            warnings.warn(f"Agent fucked up; portfolio value is {new_value}.")
             
         return roi
 
