@@ -10,7 +10,7 @@ def test_create_env():
     env = TradingEnv(mode="dev")
     env.reset()
     _ = env.step(1)
-    assert len(env.prices) == len(env.data["mean"])
+    assert len(env.prices) == len(env.data["x"])
     _ = env.data.columns
 
 
@@ -19,11 +19,12 @@ def basic_loop(t):
     state = env.reset()
     done = False
     while not done:
-        action = np.random.randint(low=-1, high=2)
+        action = 0
         next_state, r, done, _ = env.step(action)
         assert len(state) == len(next_state)
-    _ = env.compute_returns()
+    assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
+    
 
 
 def test_apple_download():
@@ -98,7 +99,7 @@ def basic_loop_with_text(t):
         (next_state, next_text), r, done, _ = env.step(action)
         assert len(state) == len(next_state)
         assert isinstance(next_text, list), f"Expected list, but got {type(vectors)}"
-    _ = env.compute_returns()
+    assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
 
 

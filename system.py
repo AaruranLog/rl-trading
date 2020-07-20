@@ -29,6 +29,8 @@ class TradingEnv(gym.Env):
         self.returns_list = []
         self.rewards_list = []
         self.actions_list = []
+        self.values = [INITIAL_BALANCE]
+        self.cumulative_costs = [0]
 
         self._compute_simple_states()
 
@@ -116,9 +118,6 @@ class TradingEnv(gym.Env):
 
     def _get_melted_technical_indicators(self):
         i = self.df_index
-        #         indicators = self.data[['x', 'std', 'sharpe', 'q']][(i-WINDOW_SIZE):i]
-        #         indicators = self.data[['x', 'std', 'sharpe']][(i-WINDOW_SIZE):i]
-        #         indicators = self.data[['x', 'std']][(i-WINDOW_SIZE):i]
         indicators = self.data[(i - WINDOW_SIZE + 1) : i + 1]
         return indicators.values.reshape(-1).tolist()
 
@@ -133,10 +132,11 @@ class TradingEnv(gym.Env):
         self.returns_list = []
         self.rewards_list = []
         self.actions_list = []
+        self.values = [INITIAL_BALANCE]
+        self.cumulative_costs = [0]
         return self._get_current_state()
 
     def _compute_reward_function(self, action):
-        assert action in [-1, 0, 1], f"Got {action} but expected one of {-1, 0, 1}"
         next_price = self._get_normalized_price(diff=1)
         price = self._get_normalized_price()
         r = next_price - price
@@ -161,7 +161,6 @@ class TradingEnv(gym.Env):
         #         elif action == 0:
         #             R = 0 - TRANSACTION_COST
         #         R = action * r + abs(action - prev_action) * TRANSACTION_COST * price
-        self.rewards_list.append(R)
         return R
 
     def step(self, action):
@@ -173,13 +172,20 @@ class TradingEnv(gym.Env):
             Inputs: action (one of {-1,0,1})
             Outputs: a tuple (observation/state, step_reward, is_done, info)
         """
+        assert action in [-1, 0, 1], f"Got {action} but expected one of {-1, 0, 1}"
+
+        roi = self._get_new_return(action)
+        self.returns_list.append(roi)
+
         R = self._compute_reward_function(action)
+        self.rewards_list.append(R)
+        new_value = self.values[-1]
         self.actions_list.append(action)
         self.df_index += 1
         return (
             self._get_current_state(),
             R,
-            self._get_current_timestamp() > self.end,
+            self._get_current_timestamp() > self.end or new_value > 0,
             {},
         )
 
@@ -187,8 +193,7 @@ class TradingEnv(gym.Env):
         return
 
     def close(self):
-        final_date = self.data.index[self.data.index >= self.end][0]
-        final_index = self.data.index.get_loc(final_date)
+        final_index = self.df_index
         dates = self.data.index[self.df_initial_index : final_index]
         tickers = [self.ticker] * len(self.actions_list)
         prices = self.prices[self.df_initial_index : final_index]
@@ -199,44 +204,38 @@ class TradingEnv(gym.Env):
                 "ticker": tickers,
                 "rewards": self.rewards_list,
                 "actions": self.actions_list,
-                "returns": self.compute_returns(),
+                "returns": self.returns_list,
                 "prices": prices,
             }
         )
         return history
 
-    def compute_returns(self):
-        self.returns_list = []
-        values = [INITIAL_BALANCE]
-        cumulative_costs = [0]
-        episode_length = len(self.actions_list)
-        prev_a = 0
-        for i in range(episode_length):
-            past_value = values[-1]
-            a = self.actions_list[i]
-            current_price = self.prices[self.df_initial_index + i]
-            next_price = self.prices[self.df_initial_index + i + 1]
-            cost_of_trade = (
-                abs(prev_a - a) * TRANSACTION_COST * past_value / current_price
-            )
-            cumulative_costs.append(cost_of_trade + cumulative_costs[-1])
+    def _get_new_return(self, a):
+        past_value = self.values[-1]
+        current_price = self._get_normalized_price()
+        next_price = self._get_normalized_price(diff=1)
+        prev_a = self.actions_list[-1] if len(self.actions_list) > 0 else 0
 
-            change_in_value = (next_price / current_price - 1) * a * past_value
-            if a == -1:
-                max_return_from_short = past_value
-                change_in_value = min([change_in_value, max_return_from_short])
-            new_value = past_value + change_in_value
-            values.append(new_value)
-            roi = (
-                0
-                if (new_value == INITIAL_BALANCE)
-                else (new_value - INITIAL_BALANCE) / cumulative_costs[-1]
-            )
-            self.returns_list.append(roi)
-
-            prev_a = a
-
-        return self.returns_list
+        cost_of_trade = abs(prev_a - a) * TRANSACTION_COST * past_value / current_price
+        self.cumulative_costs.append(cost_of_trade + self.cumulative_costs[-1])
+        change_in_value = (next_price / current_price - 1) * a * past_value
+        if a == -1:
+            max_return_from_short = past_value
+            change_in_value = min([change_in_value, max_return_from_short])
+        new_value = past_value + change_in_value
+        self.values.append(new_value)
+        roi = (
+            0
+            if (new_value == INITIAL_BALANCE)
+            else (new_value - INITIAL_BALANCE) / self.cumulative_costs[-1]
+        )
+        
+        if new_value < 5 * TRANSACTION_COST:
+            print("Warning: low portfolio value")
+        if new_value <= 0:
+            print("Warning: Agent fucked up; no money left!")
+            
+        return roi
 
 
 class TradingWithRedditEnv(TradingEnv):
