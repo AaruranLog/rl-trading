@@ -6,6 +6,9 @@ import math
 from unittest import TestCase
 
 
+def validate_state(state):
+    assert not (np.nan in state), "Found nan in state."
+
 def test_create_env():
     env = TradingEnv(mode="dev")
     env.reset()
@@ -25,7 +28,6 @@ def basic_loop(t):
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
     
-
 
 def test_apple_download():
     basic_loop("AAPL")
@@ -78,16 +80,37 @@ def test_reward():
 def test_state_valid():
     env = TradingEnv(mode="dev")
     state = env.reset()
-    for v in state:
-        assert not math.isnan(v), "Found nan in state."
+    validate_state(state)
 
+        
+def test_all_states_valid():
+    env = TradingEnv()
+    state = env.reset()
+    done = False
+    while not done:
+        action = 0
+        next_state, r, done, _ = env.step(action)
+        validate_state(state)
+        
+    assert len(env.returns_list) == len(env.actions_list)
+    h = env.close()
 
+def test_all_states_valid_dev():
+    env = TradingEnv(mode="dev")
+    state = env.reset()
+    done = False
+    while not done:
+        action = 0
+        next_state, r, done, _ = env.step(action)
+        validate_state(state)
+    assert len(env.returns_list) == len(env.actions_list)
+    h = env.close()
+    
+    
 def test_state_valid_text():
     env = TradingWithRedditEnv(mode="dev")
     state, text = env.reset()
-    for v in state:
-        assert not math.isnan(v), "Found nan in state."
-
+    validate_state(state)
 
 def basic_loop_with_text(t):
     env = TradingWithRedditEnv(ticker=t)

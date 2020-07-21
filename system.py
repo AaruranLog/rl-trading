@@ -13,8 +13,6 @@ import warnings
 from wsb_pipeline import get_all_embeddings
 
 
-
-
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 1
     TRANSACTION_COST = 0.01  # per share
@@ -232,10 +230,10 @@ class TradingEnv(gym.Env):
             else (new_value - self.INITIAL_BALANCE) / self.cumulative_costs[-1]
         )
         
-        if new_value < 5 * self.TRANSACTION_COST:
-            warnings.warn(f"Low portfolio value {new_value}")
-        if new_value <= 0:
-            warnings.warn(f"Agent fucked up; portfolio value is {new_value}.")
+#         if new_value < 5 * self.TRANSACTION_COST:
+#             warnings.warn(f"Low portfolio value {new_value}")
+#         if new_value <= 0:
+#             warnings.warn(f"Agent fucked up; portfolio value is {new_value}.")
             
         return roi
 
