@@ -182,13 +182,12 @@ class TradingEnv(gym.Env):
 
         R = self._compute_reward_function(action)
         self.rewards_list.append(R)
-        new_value = self.values[-1]
         self.actions_list.append(action)
         self.df_index += 1
         return (
             self._get_current_state(),
             R,
-            self._get_current_timestamp() > self.end or new_value > 0,
+            self._get_current_timestamp() > self.end,
             {},
         )
 
@@ -258,7 +257,7 @@ class TradingWithRedditEnv(TradingEnv):
     def _get_current_embeddings(self):
         date = self._get_date()
         daily_data = self.embedding_lookup.loc[self.embedding_lookup.date == date]
-        #         raw_values = daily_data.embeddings.apply(ast.literal_eval).values
+        # raw_values = daily_data.embeddings.apply(ast.literal_eval).values
         raw_values = daily_data.embeddings.values
         vectors = []
         for s in raw_values:
