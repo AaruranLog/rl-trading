@@ -77,17 +77,17 @@ class TradingEnv(gym.Env):
             exp_short - exp_long
         )  # / self.prices.rolling(self.short_time).std()
 
-        macd = ti.macd(
-            self.data["logx"].values,
-            short_period=self.short_time,
-            long_period=self.long_time,
-            signal_period=self.WINDOW_SIZE,
-        )
+#         macd = ti.macd(
+#             self.prices.values,
+#             short_period=self.short_time,
+#             long_period=self.long_time,
+#             signal_period=self.WINDOW_SIZE,
+#         )
 
-        self.data["macd_0"] = self.data["macd_1"] = self.data["macd_2"] = np.nan
-        self.data["macd_0"][self.long_time - 1 :] = macd[0]
-        self.data["macd_1"][self.long_time - 1 :] = macd[1]
-        self.data["macd_2"][self.long_time - 1 :] = macd[2]
+#         self.data["macd_0"] = self.data["macd_1"] = self.data["macd_2"] = np.nan
+#         self.data["macd_0"][self.long_time - 1 :] = macd[0]
+#         self.data["macd_1"][self.long_time - 1 :] = macd[1]
+#         self.data["macd_2"][self.long_time - 1 :] = macd[2]
 
         # to look up current price from self.data, irrespective of the date break due to the weekend
         self.df_initial_index = self.data.index.get_loc(self.start)

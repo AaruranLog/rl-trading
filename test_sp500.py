@@ -6,6 +6,9 @@ from pandas_datareader._utils import RemoteDataError
 
 def test_blacklist():
     blacklist = open('blacklist.txt', 'r').read().split()
+    
     for b in blacklist:
-        with pytest.raises(Exception):
+        print(b)
+        with pytest.raises(Exception) as e_info:
             basic_loop(b)
+            print(e_info)

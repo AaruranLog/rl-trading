@@ -6,7 +6,7 @@ import math
 
 
 def validate_state(state):
-    assert not (np.nan in state), "Found nan in state."
+    assert not any(map(math.isnan, state)), "Found nan in state."
 
 def test_create_env():
     env = TradingEnv(mode="dev")
