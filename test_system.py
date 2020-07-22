@@ -3,7 +3,6 @@ from system import *
 from pandas_datareader._utils import RemoteDataError
 import numpy as np
 import math
-from unittest import TestCase
 
 
 def validate_state(state):
@@ -20,10 +19,12 @@ def test_create_env():
 def basic_loop(t):
     env = TradingEnv(ticker=t)
     state = env.reset()
+    validate_state(state)
     done = False
     while not done:
         action = 0
         next_state, r, done, _ = env.step(action)
+        validate_state(next_state)
         assert len(state) == len(next_state)
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
@@ -32,12 +33,15 @@ def basic_loop(t):
 def test_apple_download():
     basic_loop("AAPL")
 
+def test_abbv_download():
+    basic_loop("ABBV")
 
+    
 def test_CELG_download_fails():
     with pytest.raises(RemoteDataError):
         basic_loop("CELG")
 
-
+        
 def test_action_error_float():
     env = TradingEnv(mode="dev")
     env.reset()

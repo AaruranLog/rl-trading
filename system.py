@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 import pandas as pd
-from pandas_datareader import data
+import pandas_datareader.data as web
 import numpy as np
 import matplotlib.pyplot as plt
 import gym
@@ -11,12 +11,15 @@ import ast
 import re
 import warnings
 from wsb_pipeline import get_all_embeddings
-
+import requests_cache
+import datetime
 
 class TradingEnv(gym.Env):
-    INITIAL_BALANCE = 1
+    INITIAL_BALANCE = 10
     TRANSACTION_COST = 0.01  # per share
-    WINDOW_SIZE = 6
+    WINDOW_SIZE = 7
+    expire_after = datetime.timedelta(days=14)
+    session = requests_cache.CachedSession(cache_name='cache', backend='sqlite', expire_after=expire_after)
 #     DELTA_DAY = pd.Timedelta(days=1)
     
     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
@@ -36,22 +39,17 @@ class TradingEnv(gym.Env):
         self._compute_simple_states()
 
     def _compute_simple_states(self):
-        self.short_time = 63
-        self.long_time = 252
+        self.short_time = 12
+        self.long_time = 26
         start, end = self.get_time_endpoints(self.mode)
         self.start = start
         self.end = end
-
-        # 81 needs to be added for some reason to make sure MACD is a number ???
-        unexplained = 81
-        #         if unexplained:
-        #             warn("Using unexplained extra pre-padding.")
         prepadding = pd.Timedelta(
-            days=self.short_time + self.long_time + self.WINDOW_SIZE + 1 + unexplained
+            days=self.short_time + self.long_time + 7
         )
-        postpadding = self.window
-        self.prices = data.DataReader(
-            self.ticker, "yahoo", start=start - prepadding, end=end + postpadding
+        postpadding = pd.Timedelta(days=7) # to get around the weekend and possible holidays
+        self.prices = web.DataReader(
+            self.ticker, "yahoo", start=start - prepadding, end=end + postpadding, session=self.session
         )["Close"]
 
         # We compute the mean, and standard deviation of the first WINDOW_SIZE days, and use this to standardize
@@ -80,7 +78,7 @@ class TradingEnv(gym.Env):
         )  # / self.prices.rolling(self.short_time).std()
 
         macd = ti.macd(
-            self.data["x"].values,
+            self.data["logx"].values,
             short_period=self.short_time,
             long_period=self.long_time,
             signal_period=self.WINDOW_SIZE,
@@ -247,7 +245,10 @@ class TradingWithRedditEnv(TradingEnv):
         text["date"] = pd.to_datetime(text["date"])
         self.text_embeddings = text
         stocks = self.data[self.df_index :]
-        stocks["date"] = stocks.index
+#         stocks["date"] = stocks.index
+        stocks = stocks.reset_index('Date')
+        stocks['date'] = stocks["Date"]
+#         stocks.drop('Date', inplace=True)
         self.embedding_lookup = pd.merge(stocks, text, how="left")[
             ["date", "embeddings"]
         ]
