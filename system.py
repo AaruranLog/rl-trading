@@ -112,7 +112,7 @@ class TradingEnv(gym.Env):
         return self.prices[self.df_index + diff]
 
     def _get_normalized_price(self, diff=0):
-        return np.power(10, self.data["x"][self.df_index + diff])
+        return np.power(10, self.data["x"][self.df_index + diff]) / 1e6
 
     def _get_current_timestamp(self):
         return self.data.index[self.df_index]
