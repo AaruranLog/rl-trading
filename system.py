@@ -57,22 +57,24 @@ class TradingEnv(gym.Env):
         assert (
             self.WINDOW_SIZE > 1
         ), "WINDOW_SIZE is too small for rolling computations to be meaningful"
-        self.mu_hat = self.prices[:self.WINDOW_SIZE].mean()
-        self.sigma_hat = self.prices[:self.WINDOW_SIZE].std()
+#         self.mu_hat = self.prices[:self.WINDOW_SIZE].mean()
+#         self.sigma_hat = self.prices[:self.WINDOW_SIZE].std()
 
-        self.data = pd.DataFrame({"x": (self.prices - self.mu_hat) / self.sigma_hat})
-        self.data["logx"] = np.log(self.prices)
-
+#         self.data = pd.DataFrame({"x": (self.prices - self.mu_hat) / self.sigma_hat})
+        self.data = pd.DataFrame()
+        self.data["x"] = self.prices.apply(np.log)
+        self.data["diff_x"] = self.data["x"].diff(-1)
+        
         self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
         # Use additive returns, because the reward is computed using the additive return
-        rets = self.prices - self.prices.shift(1)
+        rets = self.prices - self.prices.shift(-1)
 
         self.data["sharpe"] = (
             rets.rolling(self.WINDOW_SIZE).mean() / rets.rolling(self.WINDOW_SIZE).std()
         )
 
         exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean()
-        exp_long = self.prices.ewm(span=self.long_time, adjust=False).mean()
+        exp_long  = self.prices.ewm(span=self.long_time, adjust=False).mean()
         self.data["q"] = (
             exp_short - exp_long
         )  # / self.prices.rolling(self.short_time).std()
@@ -110,7 +112,7 @@ class TradingEnv(gym.Env):
         return self.prices[self.df_index + diff]
 
     def _get_normalized_price(self, diff=0):
-        return self.data["x"][self.df_index + diff]
+        return np.power(10, self.data["x"][self.df_index + diff])
 
     def _get_current_timestamp(self):
         return self.data.index[self.df_index]
@@ -210,8 +212,8 @@ class TradingEnv(gym.Env):
 
     def _get_new_return(self, a):
         past_value = self.values[-1]
-        current_price = self._get_normalized_price()
-        next_price = self._get_normalized_price(diff=1)
+        current_price = self._get_raw_price()
+        next_price = self._get_raw_price(diff=1)
         prev_a = self.actions_list[-1] if len(self.actions_list) > 0 else 0
 
         cost_of_trade = abs(prev_a - a) * self.TRANSACTION_COST * past_value / current_price
