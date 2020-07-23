@@ -376,6 +376,13 @@ class A2C(BaseAgent):
         self.optimizer.step()
 
 
+if __name__ == "__main__":
+    agents = [DQN(), A2C()]
+    for a in agents:
+        a.train(num_tickers=len(a.filtered_tickers), 
+                num_episodes=len(a.filtered_tickers) * 1)
+        a.plot_cumulative_discounted_rewards()
+        
 # a2c_agent.plot_returns("MMM")
 
 # # In[ ]:
