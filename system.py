@@ -13,14 +13,14 @@ import warnings
 from wsb_pipeline import get_all_embeddings
 import requests_cache
 import datetime
+import math
 
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
-    TRANSACTION_COST = 0.01  # per share
+    TRANSACTION_COST = 0.0001  # per share
     WINDOW_SIZE = 7
     expire_after = datetime.timedelta(days=14)
     session = requests_cache.CachedSession(cache_name='cache', backend='sqlite', expire_after=expire_after)
-#     DELTA_DAY = pd.Timedelta(days=1)
     
     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
         self.ticker = ticker
@@ -44,9 +44,7 @@ class TradingEnv(gym.Env):
         start, end = self.get_time_endpoints(self.mode)
         self.start = start
         self.end = end
-        prepadding = pd.Timedelta(
-            days=self.short_time + self.long_time + 7
-        )
+        prepadding = pd.Timedelta(days=self.short_time + self.long_time + 7)
         postpadding = pd.Timedelta(days=7) # to get around the weekend and possible holidays
         self.prices = web.DataReader(
             self.ticker, "yahoo", start=start - prepadding, end=end + postpadding, session=self.session
@@ -59,12 +57,14 @@ class TradingEnv(gym.Env):
         ), "WINDOW_SIZE is too small"
 
         self.data = pd.DataFrame()
-        self.data["x"] = self.prices.apply(np.log)
+        # We must normalize the data for numerical stability. 
+        # The data is non-stationary, so any summarizing statistic from the initial window
+        # may not hold true in the future. Hence, we use a simply division by 1e6
+        self.data["x"] = self.prices.apply(np.log) - 6
         self.data["diff_x"] = self.data["x"].diff(-1)
         
         self.mu_hat = self.data["x"][:self.WINDOW_SIZE].mean()
         self.sigma_hat = self.data["x"][:self.WINDOW_SIZE].std()
-        self.mu_max_hat = self.mu_hat + 6 * self.sigma_hat
         
         self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
         # Use additive returns, because the reward is computed using the additive return
@@ -73,7 +73,8 @@ class TradingEnv(gym.Env):
         self.data["sharpe"] = (
             rets.rolling(self.WINDOW_SIZE).mean() / rets.rolling(self.WINDOW_SIZE).std()
         )
-
+        self.data['sharpe'][self.data['sharpe'].apply(math.isnan)] = 0
+        
         exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean()
         exp_long  = self.prices.ewm(span=self.long_time, adjust=False).mean()
         self.data["q"] = (
@@ -114,7 +115,7 @@ class TradingEnv(gym.Env):
         return self.prices[self.df_index + diff]
 
     def _get_normalized_price(self, diff=0):
-        return np.power(10, (self.data["x"][self.df_index + diff] - self.mu_max_hat) / self.sigma_hat)
+        return np.power(10, (self.data["x"][self.df_index + diff]))
 
     def _get_current_timestamp(self):
         return self.data.index[self.df_index]
@@ -143,6 +144,7 @@ class TradingEnv(gym.Env):
         next_price = self._get_normalized_price(diff=1)
         price = self._get_normalized_price()
         r = next_price - price
+#         r = 
         mu = 1
 
         sigma = self.data["std"][self.df_index]
@@ -157,13 +159,13 @@ class TradingEnv(gym.Env):
         R = mu * (term1 - term2)
 
         # Additive Returns as reward function
-        #         if action == 1:
-        #             R = r - TRANSACTION_COST
-        #         elif action == -1:
-        #             R = -r - TRANSACTION_COST
-        #         elif action == 0:
-        #             R = 0 - TRANSACTION_COST
-        #         R = action * r + abs(action - prev_action) * TRANSACTION_COST * price
+        # if action == 1:
+        #     R = r - TRANSACTION_COST
+        # elif action == -1:
+        #     R = -r - TRANSACTION_COST
+        # elif action == 0:
+        #     R = 0 - TRANSACTION_COST
+        # R = action * r + abs(action - prev_action) * TRANSACTION_COST * price
         return R
 
     def step(self, action):

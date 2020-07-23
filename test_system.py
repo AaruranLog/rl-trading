@@ -5,14 +5,17 @@ import numpy as np
 import math
 
 
-filtered_tickers = open("sp500.txt", "r").read().split(",")
+filtered_tickers = open("filtered_tickers.txt", "r").read().split("\n")
+
+def test_tickers():
+    assert len(filtered_tickers)
 
 def validate_numeric_list(x):
     assert not any(map(math.isnan, x)), "Found nan in x."
     return True
 
 def test_create_env():
-    env = TradingEnv(mode="dev")
+    env = TradingEnv(mode="train")
     env.reset()
     _ = env.step(1)
     assert len(env.prices) == len(env.data["x"])
@@ -26,49 +29,50 @@ def basic_loop(t):
     while not done:
         action = 0
         next_state, r, done, _ = env.step(action)
-#         validate_numeric_list(next_state)
         assert len(state) == len(next_state)
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
 
 @pytest.mark.incremental
 class TestValidData:
+    def validate_all_data(self, t):
+        e = TradingEnv(ticker=t)
+        start_index = e.df_initial_index - e.WINDOW_SIZE
+        final_index = e.df_final_index 
+        trading_data = e.data[start_index : final_index + 1]
+        data_has_no_NaNs = trading_data.apply(validate_numeric_list).all()
+        assert data_has_no_NaNs, "NaNs found"
+    
+    def test_mmm_download(self):
+        self.validate_all_data('MMM')
+        basic_loop("MMM")
+    
     def test_apple_download(self):
+        self.validate_all_data('AAPL')
         basic_loop("AAPL")
 
     def test_abbv_download(self):
+        self.validate_all_data('ABBV')
         basic_loop("ABBV")
 
     def test_amzn_download(self):
-        basic_loop("amzn")
+        self.validate_all_data('AMZN')
+        basic_loop("AMZN")
+        
+    def test_br_download(self):
+        if 'BR' in filtered_tickers:
+            self.validate_all_data('BR')
+            basic_loop("BR")
     
-
-def test_all_tickers_download_and_valid():
-    errors = []
-    failed_tickers = []
-    for t in filtered_tickers:
-        try:
-            e = TradingEnv(ticker=t)
-            start_index = e.df_initial_index - e.WINDOW_SIZE
-            final_index = e.df_final_index 
-            trading_data = env.data[start_index : final_index + 1]
-            data_has_no_NaNs = trading_data.apply(validate_numeric_list).all()
-            assert data_has_no_NaNs, "NaNs found"
-        except Exception as e:
-            failed_tickers.append(t)
-            errors.append(e)
-    if len(errors):
-        raise AssertionError(f'Failed on all {len(failed_tickers)} / {len(filtered_tickers)}')
-    
-
-# def test_apple_download():
-#     basic_loop("AAPL")
-
-# def test_abbv_download():
-#     basic_loop("ABBV")
-
-# def test_amzn_download():
-#     basic_loop("amzn")
+    def test_all_tickers_download_and_valid(self):
+        errors = {}
+        for t in filtered_tickers:
+            try:
+                self.validate_all_data(t)
+            except Exception as e:
+                errors[t] = e
+        if len(errors):
+            raise AssertionError(f'Failed on {len(errors)} / {len(filtered_tickers)}')
     
 
 def test_CELG_download_fails():

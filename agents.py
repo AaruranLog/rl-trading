@@ -115,8 +115,8 @@ class BaseAgent:
         self.history = pd.DataFrame()
         self.rewards_history = []
         self.steps_done = 0
-        with open("sp500.txt", "r") as src:
-            self.filtered_tickers = src.read().split(",")
+        with open("filtered_tickers.txt", "r") as src:
+            self.filtered_tickers = src.read().split("\n")
 
     def run_episode(self, environment):
         """
@@ -162,7 +162,7 @@ class BaseAgent:
             history["episode"] = i + 1
             self.history = pd.concat((self.history, history))
         self.history = self.history.reset_index("Date", drop=True)
-        #         self.plot_returns(num_tickers)
+#         self.plot_returns(num_tickers)
 #         self.plot_cumulative_discounted_rewards()
 
     def plot_returns(self, ticker):
@@ -304,7 +304,7 @@ class PolicyNetwork(nn.Module):
         x = F.leaky_relu(self.l2(x))
         x = self.l3(x)
         if not logits:
-            x = torch.sigmoid(x)
+            x = torch.softmax(x, dim=1)
         return x
 
     def sample_from_softmax_policy(self, batch_state):

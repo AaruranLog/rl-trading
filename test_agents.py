@@ -42,8 +42,7 @@ def test_q_net():
 def test_policy_net():
     net = PolicyNetwork()
     x1 = FloatTensor([TradingEnv().reset()])
-    logits = net(x1)
-    pi = torch.sigmoid(logits)
+    pi = net(x1, logits=False).detach()
     assert pi.min() >= 0, f"negative probability in policy: {pi}"
     assert pi.sum() == 1, f"doesn't sum to 1 {pi}"
 
@@ -61,10 +60,11 @@ def test_base_basic():
     with pytest.raises(NotImplementedError):
         basic_episode_test(BaseAgent())
 
+
 def three_tickers_test(agent):
     agent.train(num_tickers=3, num_episodes=3)
 
-    
+
 def test_longonly_basic():
     basic_episode_test(LongOnlyAgent())
     long_agent = LongOnlyAgent()
@@ -75,34 +75,36 @@ def test_longonly_3tickers():
     three_tickers_test(LongOnlyAgent())
 
 
-
-    
 @pytest.mark.incremental
 class TestDQN:
     def test_dqn_basic(self):
         basic_episode_test(DQN())
-    
+
     def test_dqn_3tickers(self):
         a = DQN()
         three_tickers_test(a)
         validate_net(a.model)
         validate_net(a.target)
+
+    def test_dqn_long(self):
+        dqn_agent = DQN()
+        dqn_agent.train(env_mode='train', num_tickers=10, num_episodes=10)
         
-    def test_dqn_all(self):
-        pass
+    def test_dqn_long(self):
+        dqn_agent = DQN()
+        dqn_agent.train(env_mode='train', num_tickers=10, num_episodes=10)
+
 
 @pytest.mark.incremental
 class TestA2C:
     def test_a2c_basic(self):
         basic_episode_test(A2C())
 
-        
     def test_a2c_3tickers(self):
         a = A2C()
         three_tickers_test(a)
         validate_net(a.model)
         validate_net(a.policy)
-
 
     def test_a2c_large(self):
         a2c_agent = A2C()
@@ -110,8 +112,5 @@ class TestA2C:
         validate_net(a2c_agent.model)
         validate_net(a2c_agent.policy)
 
-        
     def test_a2c_all(self):
         pass
-
-
