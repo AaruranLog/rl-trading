@@ -61,52 +61,57 @@ def test_base_basic():
     with pytest.raises(NotImplementedError):
         basic_episode_test(BaseAgent())
 
+def three_tickers_test(agent):
+    agent.train(num_tickers=3, num_episodes=3)
 
-def test_dqn_basic():
-    basic_episode_test(DQN())
-
-
-def test_a2c_basic():
-    basic_episode_test(A2C())
-
-
+    
 def test_longonly_basic():
     basic_episode_test(LongOnlyAgent())
     long_agent = LongOnlyAgent()
     long_agent.train(num_tickers=1, num_episodes=100)
 
 
-def three_tickers_test(agent):
-    agent.train(num_tickers=3, num_episodes=3)
-
-
-def test_dqn_3tickers():
-    a = DQN()
-    three_tickers_test(a)
-    validate_net(a.model)
-    validate_net(a.target)
-
-
 def test_longonly_3tickers():
     three_tickers_test(LongOnlyAgent())
 
 
-def test_a2c_3tickers():
-    a = A2C()
-    three_tickers_test(a)
-    validate_net(a.model)
-    validate_net(a.policy)
 
     
-def test_a2c_large():
-    a2c_agent = A2C()
-    a2c_agent.train(env_mode="train", num_tickers=10, num_episodes=10)
-    validate_net(a2c_agent.model)
-    validate_net(a2c_agent.policy)
+@pytest.mark.incremental
+class TestDQN:
+    def test_dqn_basic(self):
+        basic_episode_test(DQN())
+    
+    def test_dqn_3tickers(self):
+        a = DQN()
+        three_tickers_test(a)
+        validate_net(a.model)
+        validate_net(a.target)
+        
+    def test_dqn_all(self):
+        pass
+
+@pytest.mark.incremental
+class TestA2C:
+    def test_a2c_basic(self):
+        basic_episode_test(A2C())
+
+        
+    def test_a2c_3tickers(self):
+        a = A2C()
+        three_tickers_test(a)
+        validate_net(a.model)
+        validate_net(a.policy)
 
 
-def test_dqn_all():
-    pass
+    def test_a2c_large(self):
+        a2c_agent = A2C()
+        a2c_agent.train(env_mode="train", num_tickers=10, num_episodes=10)
+        validate_net(a2c_agent.model)
+        validate_net(a2c_agent.policy)
+
+        
+    def test_a2c_all(self):
+        pass
 
 
-def test_a2c_all():

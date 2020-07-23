@@ -5,8 +5,11 @@ import numpy as np
 import math
 
 
-def validate_state(state):
-    assert not any(map(math.isnan, state)), "Found nan in state."
+filtered_tickers = open("sp500.txt", "r").read().split(",")
+
+def validate_numeric_list(x):
+    assert not any(map(math.isnan, x)), "Found nan in x."
+    return True
 
 def test_create_env():
     env = TradingEnv(mode="dev")
@@ -15,28 +18,59 @@ def test_create_env():
     assert len(env.prices) == len(env.data["x"])
     _ = env.data.columns
 
-
 def basic_loop(t):
     env = TradingEnv(ticker=t)
     state = env.reset()
-    validate_state(state)
+    validate_numeric_list(state)
     done = False
     while not done:
         action = 0
         next_state, r, done, _ = env.step(action)
-        validate_state(next_state)
+#         validate_numeric_list(next_state)
         assert len(state) == len(next_state)
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
+
+@pytest.mark.incremental
+class TestValidData:
+    def test_apple_download(self):
+        basic_loop("AAPL")
+
+    def test_abbv_download(self):
+        basic_loop("ABBV")
+
+    def test_amzn_download(self):
+        basic_loop("amzn")
     
 
-def test_apple_download():
-    basic_loop("AAPL")
-
-def test_abbv_download():
-    basic_loop("ABBV")
-
+def test_all_tickers_download_and_valid():
+    errors = []
+    failed_tickers = []
+    for t in filtered_tickers:
+        try:
+            e = TradingEnv(ticker=t)
+            start_index = e.df_initial_index - e.WINDOW_SIZE
+            final_index = e.df_final_index 
+            trading_data = env.data[start_index : final_index + 1]
+            data_has_no_NaNs = trading_data.apply(validate_numeric_list).all()
+            assert data_has_no_NaNs, "NaNs found"
+        except Exception as e:
+            failed_tickers.append(t)
+            errors.append(e)
+    if len(errors):
+        raise AssertionError(f'Failed on all {len(failed_tickers)} / {len(filtered_tickers)}')
     
+
+# def test_apple_download():
+#     basic_loop("AAPL")
+
+# def test_abbv_download():
+#     basic_loop("ABBV")
+
+# def test_amzn_download():
+#     basic_loop("amzn")
+    
+
 def test_CELG_download_fails():
     with pytest.raises(RemoteDataError):
         basic_loop("CELG")
@@ -84,7 +118,7 @@ def test_reward():
 def test_state_valid():
     env = TradingEnv(mode="dev")
     state = env.reset()
-    validate_state(state)
+    validate_numeric_list(state)
 
         
 def test_all_states_valid():
@@ -94,7 +128,7 @@ def test_all_states_valid():
     while not done:
         action = 0
         next_state, r, done, _ = env.step(action)
-        validate_state(state)
+        validate_numeric_list(state)
         
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
@@ -106,7 +140,7 @@ def test_all_states_valid_dev():
     while not done:
         action = 0
         next_state, r, done, _ = env.step(action)
-        validate_state(state)
+        validate_numeric_list(state)
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
     
@@ -114,7 +148,7 @@ def test_all_states_valid_dev():
 def test_state_valid_text():
     env = TradingWithRedditEnv(mode="dev")
     state, text = env.reset()
-    validate_state(state)
+    validate_numeric_list(state)
 
 def basic_loop_with_text(t):
     env = TradingWithRedditEnv(ticker=t)

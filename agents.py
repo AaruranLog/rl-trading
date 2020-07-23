@@ -309,7 +309,6 @@ class PolicyNetwork(nn.Module):
 
     def sample_from_softmax_policy(self, batch_state):
         batch_logits = self.forward(batch_state).detach()
-#         batch_probs = torch.exp(batch_log_probs)
         assert not torch.isnan(batch_logits).any(), f"NaN in policy logits {batch_logits}"
         batch_size = batch_logits.shape[0]
         actions = torch.empty(batch_size, 1)
@@ -354,7 +353,7 @@ class A2C(BaseAgent):
         q_values = self.model(state_tensor)
         q_values_detached = q_values.detach()
         pi = self.policy(state_tensor, logits=False)
-        with torch.no_grad(), torch.autograd.detect_anomaly():
+        with torch.no_grad():
             pi_detached = pi.detach()
             q = q_values_detached.gather(1, action)
             future_q = reward + self.gamma * self.model(next_state_tensor).max(dim=1)[0]

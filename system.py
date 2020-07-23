@@ -56,14 +56,15 @@ class TradingEnv(gym.Env):
         # the entire time series.
         assert (
             self.WINDOW_SIZE > 1
-        ), "WINDOW_SIZE is too small for rolling computations to be meaningful"
-#         self.mu_hat = self.prices[:self.WINDOW_SIZE].mean()
-#         self.sigma_hat = self.prices[:self.WINDOW_SIZE].std()
+        ), "WINDOW_SIZE is too small"
 
-#         self.data = pd.DataFrame({"x": (self.prices - self.mu_hat) / self.sigma_hat})
         self.data = pd.DataFrame()
         self.data["x"] = self.prices.apply(np.log)
         self.data["diff_x"] = self.data["x"].diff(-1)
+        
+        self.mu_hat = self.data["x"][:self.WINDOW_SIZE].mean()
+        self.sigma_hat = self.data["x"][:self.WINDOW_SIZE].std()
+        self.mu_max_hat = self.mu_hat + 6 * self.sigma_hat
         
         self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
         # Use additive returns, because the reward is computed using the additive return
@@ -94,15 +95,16 @@ class TradingEnv(gym.Env):
         # to look up current price from self.data, irrespective of the date break due to the weekend
         self.df_initial_index = self.data.index.get_loc(self.start)
         self.df_index = self.df_initial_index
+        self.df_final_index = self.data.index.get_loc(self.end)
 
     def get_time_endpoints(self, mode):
         """
             Start must be in Monday - Friday (??)
         """
         if mode == "train":
-            return pd.Timestamp("2014-01-06"), pd.Timestamp("2017-12-31")
+            return pd.Timestamp("2014-01-06"), pd.Timestamp("2017-12-28")
         elif mode == "dev":
-            return pd.Timestamp("2014-01-06"), pd.Timestamp("2014-12-28")
+            return pd.Timestamp("2014-01-06"), pd.Timestamp("2015-01-02")
         elif mode == "test":
             return pd.Timestamp("2018-01-01"), pd.Timestamp("2018-12-31")
         else:
@@ -112,7 +114,7 @@ class TradingEnv(gym.Env):
         return self.prices[self.df_index + diff]
 
     def _get_normalized_price(self, diff=0):
-        return np.power(10, self.data["x"][self.df_index + diff]) / 1e6
+        return np.power(10, (self.data["x"][self.df_index + diff] - self.mu_max_hat) / self.sigma_hat)
 
     def _get_current_timestamp(self):
         return self.data.index[self.df_index]
