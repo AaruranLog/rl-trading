@@ -29,6 +29,29 @@ def validate_net(net):
         raise ValueError("Weight of net has become NaN")
 
 
+def test_q_net():
+    net = QNetwork()
+    x1 = FloatTensor([TradingEnv().reset()])
+    qs = net(x1)
+
+    x1[0, 0] = float("nan")
+    with pytest.raises(AssertionError):
+        net(x1)
+
+
+def test_policy_net():
+    net = PolicyNetwork()
+    x1 = FloatTensor([TradingEnv().reset()])
+    logits = net(x1)
+    pi = torch.sigmoid(logits)
+    assert pi.min() >= 0, f"negative probability in policy: {pi}"
+    assert pi.sum() == 1, f"doesn't sum to 1 {pi}"
+
+    x1[0, 0] = float("nan")
+    with pytest.raises(AssertionError):
+        net(x1)
+
+
 def basic_episode_test(agent):
     env = TradingEnv()
     agent.run_episode(env)
@@ -74,7 +97,7 @@ def test_a2c_3tickers():
     validate_net(a.model)
     validate_net(a.policy)
 
-
+    
 def test_a2c_large():
     a2c_agent = A2C()
     a2c_agent.train(env_mode="train", num_tickers=10, num_episodes=10)
@@ -82,24 +105,8 @@ def test_a2c_large():
     validate_net(a2c_agent.policy)
 
 
-def test_q_net():
-    net = QNetwork()
-    x1 = FloatTensor([TradingEnv().reset()])
-    qs = net(x1)
-
-    x1[0, 0] = float("nan")
-    with pytest.raises(AssertionError):
-        net(x1)
+def test_dqn_all():
+    pass
 
 
-def test_policy_net():
-    net = PolicyNetwork()
-    x1 = FloatTensor([TradingEnv().reset()])
-    logits = net(x1)
-    pi = torch.sigmoid(logits)
-    assert pi.min() >= 0, f"negative probability in policy: {pi}"
-    assert pi.sum() == 1, f"doesn't sum to 1 {pi}"
-
-    x1[0, 0] = float("nan")
-    with pytest.raises(AssertionError):
-        net(x1)
+def test_a2c_all():
