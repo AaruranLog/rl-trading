@@ -44,7 +44,9 @@ class TradingEnv(gym.Env):
         start, end = self.get_time_endpoints(self.mode)
         self.start = start
         self.end = end
+        # We need prepadding for the momentum q, and the rolling calcuations
         prepadding = pd.Timedelta(days=self.short_time + self.long_time + self.WINDOW_SIZE + 7)
+
         postpadding = pd.Timedelta(days=7) # to get around the weekend and possible holidays
         self.prices = web.DataReader(
             self.ticker, "yahoo", start=start - prepadding, end=end + postpadding, session=self.session
@@ -60,18 +62,24 @@ class TradingEnv(gym.Env):
         # We must normalize the data for numerical stability. 
         # The data is non-stationary, so any summarizing statistic from the initial window
         # may not hold true in the future. Hence, we use a simply division by 1e6
-        self.data["x"] = self.prices.apply(np.log) - 8
+        min_prices = self.prices.expanding().min()
+        max_prices = self.prices.expanding().max()
+        width = max_prices - min_prices
+        width[0] = 1
+        center = self.prices.expanding().median()
+        scaled_prices = (self.prices - center) / width
+        self.data["x"] = scaled_prices
         self.data["diff_x"] = self.data["x"].diff(-1)
         
         self.mu_hat = self.data["x"][:self.WINDOW_SIZE].mean()
         self.sigma_hat = self.data["x"][:self.WINDOW_SIZE].std()
         
-        self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
+        self.data["std"] = self.data["diff_x"].rolling(self.WINDOW_SIZE).std()
         smallest_nonzero_std = self.data['std'][self.data['std'] > 0].min()
         self.data['std'][self.data['std'] == 0] = smallest_nonzero_std
         # Use additive returns, because the reward is computed using the additive return
 #         rets = self.prices - self.prices.shift(-1)
-        rets = self.data["diff_x"]
+        rets = self.prices.diff(-1)
 
         self.data["sharpe"] = (
             rets.rolling(self.WINDOW_SIZE).mean() / rets.rolling(self.WINDOW_SIZE).std()

@@ -392,7 +392,8 @@ class A2C(BaseAgent):
 
 
 if __name__ == "__main__":
-    agents = [DQN(), A2C()]
+#     agents = [DQN(), A2C()]
+    agents = [A2C()]
     for a in agents:
         a.train(num_tickers=len(a.filtered_tickers), 
                 num_episodes=len(a.filtered_tickers) * 1)

@@ -37,7 +37,7 @@ def basic_loop_continuous(t):
         assert len(state) == len(next_state)
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
-    assert all(h == h.dropna()), "Invalid history"
+    assert all(h == h.fillna(np.inf)), "Invalid history"
     
 def test_cnts_loop():
     basic_loop_continuous('AAPL')
@@ -61,7 +61,7 @@ def basic_loop(t):
         assert len(state) == len(next_state)
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
-    assert all(h == h.dropna()), "Invalid history"
+    assert all(h == h.fillna(np.inf)), "Invalid history"
 
 @pytest.mark.incremental
 class TestValidData:
@@ -70,7 +70,7 @@ class TestValidData:
         start_index = e.df_initial_index - e.WINDOW_SIZE
         final_index = e.df_final_index 
         trading_data = e.data[start_index : final_index + 1]
-        data_has_no_NaNs = all(trading_data == trading_data.dropna())
+        data_has_no_NaNs = all(trading_data == trading_data.fillna(np.inf))
         assert data_has_no_NaNs, "NaNs found"
         
         assert trading_data['std'].min() > 0, f"Zero standard deviation found in {t} data."
@@ -104,7 +104,7 @@ class TestValidData:
                 start_index = e.df_initial_index - e.WINDOW_SIZE
                 final_index = e.df_final_index 
                 trading_data = e.data[start_index : final_index + 1]
-                data_has_no_NaNs = all(trading_data == trading_data.dropna())
+                data_has_no_NaNs = all(trading_data == trading_data.fillna(np.inf))
                 assert data_has_no_NaNs, "NaNs found"
                 assert trading_data['std'].min() > 0, f"Zero standard deviation found in {t} data."
             except AssertionError as ex:
@@ -204,7 +204,7 @@ def basic_loop_with_text(t):
         assert isinstance(next_text, list), f"Expected list, but got {type(vectors)}"
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
-    assert all(h == h.dropna()), "Invalid history"
+    assert all(h == h.fillna(np.inf)), "Invalid history"
 
 def test_reddit_loop():
     basic_loop_with_text("aapl")
