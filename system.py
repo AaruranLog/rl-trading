@@ -60,7 +60,7 @@ class TradingEnv(gym.Env):
         # We must normalize the data for numerical stability. 
         # The data is non-stationary, so any summarizing statistic from the initial window
         # may not hold true in the future. Hence, we use a simply division by 1e6
-        self.data["x"] = self.prices.apply(np.log) - 6
+        self.data["x"] = self.prices.apply(np.log) - 8
         self.data["diff_x"] = self.data["x"].diff(-1)
         
         self.mu_hat = self.data["x"][:self.WINDOW_SIZE].mean()
@@ -282,12 +282,6 @@ class TradingWithRedditEnv(TradingEnv):
         embedded = self._get_current_embeddings()
         return melted, embedded
 
-
-# class TradingWithRedditEnv(TradingEnv):
-#     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
-#         super(TradingWithRedditEnv, self).__init__(
-#             ticker=ticker, target_volatility=target_volatility, mode=mode
-#         )    
     
 class ContinuousTradingEnv(TradingEnv):
     def __init__(self, **kwargs):
