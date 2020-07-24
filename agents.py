@@ -97,8 +97,6 @@ class QNetwork(nn.Module):
 
 
 class BaseAgent:
-#     e = TradingEnv()
-
 #     EPISODES = 2000  # number of episodes
     
     LR = 0.001  # NN optimizer learning rate
@@ -113,7 +111,8 @@ class BaseAgent:
         self.gamma = gamma
         self.memory = ReplayMemory(self.BUFFER_SIZE)
         self.history = pd.DataFrame()
-        self.rewards_history = []
+#         self.rewards_history = []
+        self.name = ""
         self.steps_done = 0
         with open("filtered_tickers.txt", "r") as src:
             self.filtered_tickers = src.read().split("\n")
@@ -135,8 +134,15 @@ class BaseAgent:
         rl_data = rl_data[["episode", "discounted_future_reward"]]
         rl_data = rl_data.groupby("episode").sum()
         #         rl_plot = sns.lineplot(data=rl_data, legend=False)
-        rl_data.plot(legend=False, title=f"Cumulative Discounted Rewards over Episodes")
+        title = "Cumulative Discounted Rewards over Episodes"
+        if len(self.name):
+            title = f'Cumulative Discounted Reward for {self.name}'
+            
+        rl_data.plot(legend=False, title=title)
         plt.ylabel("Cumulative Discounted Reward")
+        if len(self.name):
+            filename = f'plots/rewards-{self.name}.png'
+            plt.savefig(filename)
         plt.show()
 
     def convert_action(self, action):
@@ -186,7 +192,7 @@ class DQN(BaseAgent):
         if use_cuda:
             self.model.cuda()
             self.target.cuda()
-        
+        self.name = "Deep Q-Network"
         self.optimizer = optim.SGD(self.model.parameters(), self.LR)
 
     def select_epsilon_greedy_action(self, state):
@@ -277,6 +283,7 @@ class DQN(BaseAgent):
 class LongOnlyAgent(BaseAgent):
     def __init__(self):
         super().__init__()
+        self.name = "Long-Only Strategy"
 
     def run_episode(self, environment):
         state = environment.reset()
@@ -288,7 +295,7 @@ class LongOnlyAgent(BaseAgent):
             steps += 1
             if done:
                 break
-        self.rewards_history.append(environment.rewards_list)
+        self.history.append(environment.rewards_list)
         return environment.close()
 
 class PolicyNetwork(nn.Module):
@@ -328,6 +335,7 @@ class PolicyNetwork(nn.Module):
 class A2C(BaseAgent):
     def __init__(self):
         super().__init__()
+        self.name = "A2C"
         self.policy = PolicyNetwork()
         self.model = QNetwork()
         if use_cuda:
