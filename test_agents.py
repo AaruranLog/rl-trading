@@ -44,7 +44,7 @@ def test_policy_net():
     x1 = FloatTensor([TradingEnv().reset()])
     pi = net(x1, logits=False).detach()
     assert pi.min() >= 0, f"negative probability in policy: {pi}"
-    assert pi.sum() == 1, f"doesn't sum to 1 {pi}"
+    assert abs(pi.sum()-1) < 1e-3, f"doesn't sum to 1 {pi}"
 
     x1[0, 0] = float("nan")
     with pytest.raises(AssertionError):
