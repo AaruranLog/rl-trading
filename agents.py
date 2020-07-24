@@ -76,8 +76,8 @@ class QNetwork(nn.Module):
             Computes the estimated Q-values for a given batch x
         """
         assert not torch.isnan(x).any(), f"NaN in input {x}"
-        x = F.leaky_relu(self.l1(x))
-        x = F.leaky_relu(self.l2(x))
+        x = F.relu(self.l1(x))
+        x = F.relu(self.l2(x))
         x = self.l3(x)
         return x
 
@@ -183,6 +183,10 @@ class DQN(BaseAgent):
         super().__init__()
         self.model = QNetwork()
         self.target = QNetwork()
+        if use_cuda:
+            self.model.cuda()
+            self.target.cuda()
+        
         self.optimizer = optim.SGD(self.model.parameters(), self.LR)
 
     def select_epsilon_greedy_action(self, state):
@@ -300,8 +304,8 @@ class PolicyNetwork(nn.Module):
             returns the logits of the probability
         """
         assert not torch.isnan(x).any(), f"NaN in input {x}"
-        x = F.leaky_relu(self.l1(x))
-        x = F.leaky_relu(self.l2(x))
+        x = F.relu(self.l1(x))
+        x = F.relu(self.l2(x))
         x = self.l3(x)
         if not logits:
             x = torch.softmax(x, dim=1)
@@ -326,6 +330,10 @@ class A2C(BaseAgent):
         super().__init__()
         self.policy = PolicyNetwork()
         self.model = QNetwork()
+        if use_cuda:
+            self.policy.cuda()
+            self.model.cuda()
+        
         self.optimizer = optim.SGD(
             chain(self.model.parameters(), self.policy.parameters()), self.LR
         )

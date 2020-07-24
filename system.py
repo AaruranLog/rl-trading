@@ -18,7 +18,7 @@ import math
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
     TRANSACTION_COST = 0.0001  # per share
-    WINDOW_SIZE = 7
+    WINDOW_SIZE = 14
     expire_after = datetime.timedelta(days=14)
     session = requests_cache.CachedSession(cache_name='cache', backend='sqlite', expire_after=expire_after)
     
@@ -44,7 +44,7 @@ class TradingEnv(gym.Env):
         start, end = self.get_time_endpoints(self.mode)
         self.start = start
         self.end = end
-        prepadding = pd.Timedelta(days=self.short_time + self.long_time + 7)
+        prepadding = pd.Timedelta(days=self.short_time + self.long_time + self.WINDOW_SIZE + 7)
         postpadding = pd.Timedelta(days=7) # to get around the weekend and possible holidays
         self.prices = web.DataReader(
             self.ticker, "yahoo", start=start - prepadding, end=end + postpadding, session=self.session
@@ -67,16 +67,19 @@ class TradingEnv(gym.Env):
         self.sigma_hat = self.data["x"][:self.WINDOW_SIZE].std()
         
         self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
+        smallest_nonzero_std = self.data['std'][self.data['std'] > 0].min()
+        self.data['std'][self.data['std'] == 0] = smallest_nonzero_std
         # Use additive returns, because the reward is computed using the additive return
-        rets = self.prices - self.prices.shift(-1)
+#         rets = self.prices - self.prices.shift(-1)
+        rets = self.data["diff_x"]
 
         self.data["sharpe"] = (
             rets.rolling(self.WINDOW_SIZE).mean() / rets.rolling(self.WINDOW_SIZE).std()
         )
         self.data['sharpe'][self.data['sharpe'].apply(math.isnan)] = 0
         
-        exp_short = self.prices.ewm(span=self.short_time, adjust=False).mean()
-        exp_long  = self.prices.ewm(span=self.long_time, adjust=False).mean()
+        exp_short = self.data["diff_x"].ewm(span=self.short_time, adjust=False).mean()
+        exp_long  = self.data["diff_x"].ewm(span=self.long_time, adjust=False).mean()
         self.data["q"] = (
             exp_short - exp_long
         )  # / self.prices.rolling(self.short_time).std()

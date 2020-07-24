@@ -42,6 +42,8 @@ class TestValidData:
         trading_data = e.data[start_index : final_index + 1]
         data_has_no_NaNs = trading_data.apply(validate_numeric_list).all()
         assert data_has_no_NaNs, "NaNs found"
+        
+        assert trading_data['std'].min() > 0, f"Zero standard deviation found in {t} data."
     
     def test_mmm_download(self):
         self.validate_all_data('MMM')
@@ -68,11 +70,17 @@ class TestValidData:
         errors = {}
         for t in filtered_tickers:
             try:
-                self.validate_all_data(t)
-            except Exception as e:
-                errors[t] = e
+                e = TradingEnv(ticker=t)
+                start_index = e.df_initial_index - e.WINDOW_SIZE
+                final_index = e.df_final_index 
+                trading_data = e.data[start_index : final_index + 1]
+                data_has_no_NaNs = all(trading_data == trading_data.dropna())
+                assert data_has_no_NaNs, "NaNs found"
+                assert trading_data['std'].min() > 0, f"Zero standard deviation found in {t} data."
+            except AssertionError as ex:
+                    errors[t] = ex
         if len(errors):
-            raise AssertionError(f'Failed on {len(errors)} / {len(filtered_tickers)}')
+            raise AssertionError(f'Failed {len(errors)}/{len(filtered_tickers)}, {errors.keys()}')
     
 
 def test_CELG_download_fails():
