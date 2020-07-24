@@ -14,6 +14,35 @@ def validate_numeric_list(x):
     assert not any(map(math.isnan, x)), "Found nan in x."
     return True
 
+    
+def test_continuous_actions():
+    actions = np.linspace(-1, 1, 100)
+    np.random.seed(885)
+    np.random.shuffle(actions)
+#     e = ContinuousTradingEnv('AAPL', 10, "train")
+    e = ContinuousTradingEnv()
+    for a in actions:
+        e.reset()
+        _ = e.step(a)
+        
+def basic_loop_continuous(t):
+    env = ContinuousTradingEnv(ticker=t)
+    state = env.reset()
+    validate_numeric_list(state)
+    done = False
+    np.random.seed(885)
+    while not done:
+        action = np.random.uniform(low=-1.0, high=1.0)
+        next_state, r, done, _ = env.step(action)
+        assert len(state) == len(next_state)
+    assert len(env.returns_list) == len(env.actions_list)
+    h = env.close()
+    assert all(h == h.dropna()), "Invalid history"
+    
+def test_cnts_loop():
+    basic_loop_continuous('AAPL')
+    basic_loop_continuous('TSLA')
+
 def test_create_env():
     env = TradingEnv(mode="train")
     env.reset()
@@ -32,6 +61,7 @@ def basic_loop(t):
         assert len(state) == len(next_state)
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
+    assert all(h == h.dropna()), "Invalid history"
 
 @pytest.mark.incremental
 class TestValidData:
@@ -40,7 +70,7 @@ class TestValidData:
         start_index = e.df_initial_index - e.WINDOW_SIZE
         final_index = e.df_final_index 
         trading_data = e.data[start_index : final_index + 1]
-        data_has_no_NaNs = trading_data.apply(validate_numeric_list).all()
+        data_has_no_NaNs = all(trading_data == trading_data.dropna())
         assert data_has_no_NaNs, "NaNs found"
         
         assert trading_data['std'].min() > 0, f"Zero standard deviation found in {t} data."
@@ -174,8 +204,9 @@ def basic_loop_with_text(t):
         assert isinstance(next_text, list), f"Expected list, but got {type(vectors)}"
     assert len(env.returns_list) == len(env.actions_list)
     h = env.close()
-
+    assert all(h == h.dropna()), "Invalid history"
 
 def test_reddit_loop():
     basic_loop_with_text("aapl")
     basic_loop_with_text("tsla")
+

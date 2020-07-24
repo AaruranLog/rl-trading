@@ -243,8 +243,8 @@ class TradingEnv(gym.Env):
 #             warnings.warn(f"Agent fucked up; portfolio value is {new_value}.")
             
         return roi
-
-
+   
+    
 class TradingWithRedditEnv(TradingEnv):
     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
         super(TradingWithRedditEnv, self).__init__(
@@ -281,3 +281,41 @@ class TradingWithRedditEnv(TradingEnv):
         melted = self._get_melted_technical_indicators()
         embedded = self._get_current_embeddings()
         return melted, embedded
+
+
+# class TradingWithRedditEnv(TradingEnv):
+#     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
+#         super(TradingWithRedditEnv, self).__init__(
+#             ticker=ticker, target_volatility=target_volatility, mode=mode
+#         )    
+    
+class ContinuousTradingEnv(TradingEnv):
+    def __init__(self, **kwargs):
+        super().__init__(
+            **kwargs
+        )
+
+    def step(self, action):
+        """
+            Executes an action in the stock environment, using 
+            the CONTINUOUS action space described in: Deep Reinforcement Learning for Trading
+            
+            i.e. -1 is maximally short, 0 is no holdings, 1 is maximally long
+            Inputs: action in [-1, 1]
+            Outputs: a tuple (observation/state, step_reward, is_done, info)
+        """
+        assert -1 <= action <= 1, f"Got {action} but it is outside of [-1, 1]"
+
+        roi = self._get_new_return(action)
+        self.returns_list.append(roi)
+
+        R = self._compute_reward_function(action)
+        self.rewards_list.append(R)
+        self.actions_list.append(action)
+        self.df_index += 1
+        return (
+            self._get_current_state(),
+            R,
+            self._get_current_timestamp() > self.end,
+            {},
+        )
