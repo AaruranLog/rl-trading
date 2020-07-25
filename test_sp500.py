@@ -1,6 +1,6 @@
 import pytest
 from system import *
-from test_system import basic_loop
+from test_system import Test_TradingEnv
 from pandas_datareader._utils import RemoteDataError
 
 
@@ -10,8 +10,8 @@ def test_blacklist():
     for b in blacklist:
         print(b)
         with pytest.raises(Exception) as e_info:
-            basic_loop(b)
-            print(e_info)
+            Test_TradingEnv.basic_loop(b)
+#             print(e_info)
             
 def test_filtered():
     with open("filtered_tickers.txt", "r") as src:
