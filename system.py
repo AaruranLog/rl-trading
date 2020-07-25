@@ -15,13 +15,16 @@ import requests_cache
 import datetime
 import math
 
+
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
     TRANSACTION_COST = 0.0001  # per share
     WINDOW_SIZE = 14
     expire_after = datetime.timedelta(days=14)
-    session = requests_cache.CachedSession(cache_name='cache', backend='sqlite', expire_after=expire_after)
-    
+    session = requests_cache.CachedSession(
+        cache_name="cache", backend="sqlite", expire_after=expire_after
+    )
+
     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
         self.ticker = ticker
         self.window = pd.Timedelta(days=self.WINDOW_SIZE)
@@ -45,11 +48,19 @@ class TradingEnv(gym.Env):
         self.start = start
         self.end = end
         # We need prepadding for the momentum q, and the rolling calcuations
-        prepadding = pd.Timedelta(days=self.short_time + self.long_time + self.WINDOW_SIZE + 7)
+        prepadding = pd.Timedelta(
+            days=self.short_time + self.long_time + self.WINDOW_SIZE + 7
+        )
 
-        postpadding = pd.Timedelta(days=7) # to get around the weekend and possible holidays
+        postpadding = pd.Timedelta(
+            days=7
+        )  # to get around the weekend and possible holidays
         self.prices = web.DataReader(
-            self.ticker, "yahoo", start=start - prepadding, end=end + postpadding, session=self.session
+            self.ticker,
+            "yahoo",
+            start=start - prepadding,
+            end=end + postpadding,
+            session=self.session,
         )["Close"]
         prices_mean = self.prices.expanding().mean()
         prices_std = self.prices.expanding().std()
@@ -60,7 +71,7 @@ class TradingEnv(gym.Env):
         assert self.WINDOW_SIZE > 1, "WINDOW_SIZE is too small"
 
         self.data = pd.DataFrame()
-        # We must rescale the data dynamically for numerical stability. 
+        # We must rescale the data dynamically for numerical stability.
         min_prices = self.prices.expanding().min()
         max_prices = self.prices.expanding().max()
         width = max_prices - min_prices
@@ -69,39 +80,39 @@ class TradingEnv(gym.Env):
         scaled_prices = (self.prices - center) / width
         self.data["x"] = scaled_prices
         self.data["diff_x"] = self.data["x"].diff(-1)
-        
-        self.mu_hat = self.data["x"][:self.WINDOW_SIZE].mean()
-        self.sigma_hat = self.data["x"][:self.WINDOW_SIZE].std()
-        
+
+        self.mu_hat = self.data["x"][: self.WINDOW_SIZE].mean()
+        self.sigma_hat = self.data["x"][: self.WINDOW_SIZE].std()
+
         self.data["std"] = self.data["diff_x"].rolling(self.WINDOW_SIZE).std()
-        smallest_nonzero_std = self.data['std'][self.data['std'] > 0].min()
-        self.data['std'][self.data['std'] == 0] = smallest_nonzero_std
+        smallest_nonzero_std = self.data["std"][self.data["std"] > 0].min()
+        self.data["std"][self.data["std"] == 0] = smallest_nonzero_std
         # Use additive returns, because the reward is computed using the additive return
-#         rets = self.prices - self.prices.shift(-1)
+        #         rets = self.prices - self.prices.shift(-1)
         rets = self.prices.diff().shift(-1)
 
         self.data["sharpe"] = (
             rets.rolling(self.WINDOW_SIZE).mean() / rets.rolling(self.WINDOW_SIZE).std()
         )
-        self.data['sharpe'][self.data['sharpe'].apply(math.isnan)] = 0
-        
+        self.data["sharpe"][self.data["sharpe"].apply(math.isnan)] = 0
+
         exp_short = self.data["diff_x"].ewm(span=self.short_time, adjust=False).mean()
-        exp_long  = self.data["diff_x"].ewm(span=self.long_time, adjust=False).mean()
+        exp_long = self.data["diff_x"].ewm(span=self.long_time, adjust=False).mean()
         self.data["q"] = (
             exp_short - exp_long
         )  # / self.prices.rolling(self.short_time).std()
 
-#         macd = ti.macd(
-#             self.prices.values,
-#             short_period=self.short_time,
-#             long_period=self.long_time,
-#             signal_period=self.WINDOW_SIZE,
-#         )
+        #         macd = ti.macd(
+        #             self.prices.values,
+        #             short_period=self.short_time,
+        #             long_period=self.long_time,
+        #             signal_period=self.WINDOW_SIZE,
+        #         )
 
-#         self.data["macd_0"] = self.data["macd_1"] = self.data["macd_2"] = np.nan
-#         self.data["macd_0"][self.long_time - 1 :] = macd[0]
-#         self.data["macd_1"][self.long_time - 1 :] = macd[1]
-#         self.data["macd_2"][self.long_time - 1 :] = macd[2]
+        #         self.data["macd_0"] = self.data["macd_1"] = self.data["macd_2"] = np.nan
+        #         self.data["macd_0"][self.long_time - 1 :] = macd[0]
+        #         self.data["macd_1"][self.long_time - 1 :] = macd[1]
+        #         self.data["macd_2"][self.long_time - 1 :] = macd[2]
 
         # to look up current price from self.data, irrespective of the date break due to the weekend
         self.df_initial_index = self.data.index.get_loc(self.start)
@@ -154,7 +165,7 @@ class TradingEnv(gym.Env):
         next_price = self._get_normalized_price(diff=1)
         price = self._get_normalized_price()
         r = next_price - price
-#         r = 
+        #         r =
         mu = 1
 
         sigma = self.data["std"][self.df_index]
@@ -230,7 +241,9 @@ class TradingEnv(gym.Env):
         next_price = self._get_raw_price(diff=1)
         prev_a = self.actions_list[-1] if len(self.actions_list) > 0 else 0
 
-        cost_of_trade = abs(prev_a - a) * self.TRANSACTION_COST * past_value / current_price
+        cost_of_trade = (
+            abs(prev_a - a) * self.TRANSACTION_COST * past_value / current_price
+        )
         self.cumulative_costs.append(cost_of_trade + self.cumulative_costs[-1])
         change_in_value = (next_price / current_price - 1) * a * past_value
         if a == -1:
@@ -243,15 +256,15 @@ class TradingEnv(gym.Env):
             if (new_value == self.INITIAL_BALANCE)
             else (new_value - self.INITIAL_BALANCE) / self.cumulative_costs[-1]
         )
-        
-#         if new_value < 5 * self.TRANSACTION_COST:
-#             warnings.warn(f"Low portfolio value {new_value}")
-#         if new_value <= 0:
-#             warnings.warn(f"Agent fucked up; portfolio value is {new_value}.")
-            
+
+        #         if new_value < 5 * self.TRANSACTION_COST:
+        #             warnings.warn(f"Low portfolio value {new_value}")
+        #         if new_value <= 0:
+        #             warnings.warn(f"Agent fucked up; portfolio value is {new_value}.")
+
         return roi
-   
-    
+
+
 class TradingWithRedditEnv(TradingEnv):
     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
         super(TradingWithRedditEnv, self).__init__(
@@ -261,10 +274,10 @@ class TradingWithRedditEnv(TradingEnv):
         text["date"] = pd.to_datetime(text["date"])
         self.text_embeddings = text
         stocks = self.data[self.df_index :]
-#         stocks["date"] = stocks.index
-        stocks = stocks.reset_index('Date')
-        stocks['date'] = stocks["Date"]
-#         stocks.drop('Date', inplace=True)
+        #         stocks["date"] = stocks.index
+        stocks = stocks.reset_index("Date")
+        stocks["date"] = stocks["Date"]
+        #         stocks.drop('Date', inplace=True)
         self.embedding_lookup = pd.merge(stocks, text, how="left")[
             ["date", "embeddings"]
         ]
@@ -289,12 +302,10 @@ class TradingWithRedditEnv(TradingEnv):
         embedded = self._get_current_embeddings()
         return melted, embedded
 
-    
+
 class ContinuousTradingEnv(TradingEnv):
     def __init__(self, *args, **kwargs):
-        super().__init__(
-            *args, **kwargs
-        )
+        super().__init__(*args, **kwargs)
 
     def step(self, action):
         """

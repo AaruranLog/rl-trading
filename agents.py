@@ -16,6 +16,7 @@ import random
 import math
 from tqdm import tqdm
 
+
 class ReplayMemory:
     def __init__(self, capacity):
         self.capacity = capacity
@@ -31,6 +32,7 @@ class ReplayMemory:
 
     def __len__(self):
         return len(self.memory)
+
 
 STATE_DIM = len(TradingEnv().reset())
 #     print(f"STATE_DIM = {STATE_DIM}")
@@ -97,10 +99,10 @@ class QNetwork(nn.Module):
 
 
 class BaseAgent:
-#     EPISODES = 2000  # number of episodes
-    
+    #     EPISODES = 2000  # number of episodes
+
     LR = 0.001  # NN optimizer learning rate
-    
+
     BATCH_SIZE = 16  # Q-learning batch size
     TARGET_UPDATE = 100  # frequency of target update
     BUFFER_SIZE = 100  # capacity of the replay buffer
@@ -111,7 +113,7 @@ class BaseAgent:
         self.gamma = gamma
         self.memory = ReplayMemory(self.BUFFER_SIZE)
         self.history = pd.DataFrame()
-#         self.rewards_history = []
+        #         self.rewards_history = []
         self.name = ""
         self.steps_done = 0
         with open("filtered_tickers.txt", "r") as src:
@@ -136,17 +138,17 @@ class BaseAgent:
         #         rl_plot = sns.lineplot(data=rl_data, legend=False)
         title = "Cumulative Discounted Rewards over Episodes"
         if len(self.name):
-            title = f'Cumulative Discounted Reward for {self.name}'
-            
+            title = f"Cumulative Discounted Reward for {self.name}"
+
         rl_data.plot(legend=False, title=title)
         plt.ylabel("Cumulative Discounted Reward")
         if len(self.name):
-            filename = f'plots/rewards-{self.name}.png'
+            filename = f"plots/rewards-{self.name}.png"
             plt.savefig(filename)
         plt.show()
 
     def convert_action(self, action):
-        assert action in [0,1,2], f'Invalid action: {action}'
+        assert action in [0, 1, 2], f"Invalid action: {action}"
         position = action - 1
         #         assert position in [-1,0,1]
         return position.item()
@@ -168,8 +170,9 @@ class BaseAgent:
             history["episode"] = i + 1
             self.history = pd.concat((self.history, history))
         self.history = self.history.reset_index("Date", drop=True)
-#         self.plot_returns(num_tickers)
-#         self.plot_cumulative_discounted_rewards()
+
+    #         self.plot_returns(num_tickers)
+    #         self.plot_cumulative_discounted_rewards()
 
     def plot_returns(self, ticker):
         h = self.history
@@ -279,7 +282,7 @@ class DQN(BaseAgent):
         loss.backward()
         self.optimizer.step()
 
-        
+
 class LongOnlyAgent(BaseAgent):
     def __init__(self):
         super().__init__()
@@ -297,6 +300,7 @@ class LongOnlyAgent(BaseAgent):
                 break
         self.history.append(environment.rewards_list)
         return environment.close()
+
 
 class PolicyNetwork(nn.Module):
     # for Policy-Gradient methods, e.g. actor-only and actor-critic methods
@@ -320,7 +324,9 @@ class PolicyNetwork(nn.Module):
 
     def sample_from_softmax_policy(self, batch_state):
         batch_logits = self.forward(batch_state).detach()
-        assert not torch.isnan(batch_logits).any(), f"NaN in policy logits {batch_logits}"
+        assert not torch.isnan(
+            batch_logits
+        ).any(), f"NaN in policy logits {batch_logits}"
         batch_size = batch_logits.shape[0]
         actions = torch.empty(batch_size, 1)
         for i in range(batch_size):
@@ -341,7 +347,7 @@ class A2C(BaseAgent):
         if use_cuda:
             self.policy.cuda()
             self.model.cuda()
-        
+
         self.optimizer = optim.Adam(
             chain(self.model.parameters(), self.policy.parameters()), self.LR
         )
@@ -369,15 +375,15 @@ class A2C(BaseAgent):
         expected_q = reward + self.gamma * self.model(next_state_tensor).max(dim=1)[0]
         q_values = self.model(state_tensor)
         current_q = q_values.gather(1, action).squeeze(0)
-#         assert current_q.shape == expected_q.shape, f"Wrong shapes for q-values {current_q.shape, expected_q.shape}"
-        # TODO: Use F.smooth_l1_loss with out max-bounding the prices, as this 
+        #         assert current_q.shape == expected_q.shape, f"Wrong shapes for q-values {current_q.shape, expected_q.shape}"
+        # TODO: Use F.smooth_l1_loss with out max-bounding the prices, as this
         # loss function can possibly remedy
         q_loss = F.mse_loss(current_q, expected_q.detach())
-        
+
         pi = self.policy(state_tensor, logits=False)
         A = expected_q - torch.dot(q_values.squeeze(0), pi.squeeze(0))
         pi_a = pi.gather(1, action)
-        policy_loss = - A.detach() * torch.log(pi_a)
+        policy_loss = -A.detach() * torch.log(pi_a)
 
         loss = (self.gamma ** n) * (policy_loss + q_loss)
 
@@ -389,12 +395,14 @@ class A2C(BaseAgent):
 
 if __name__ == "__main__":
     agents = [DQN(), A2C()]
-#     agents = [A2C()]
+    #     agents = [A2C()]
     for a in agents:
-        a.train(num_tickers=len(a.filtered_tickers), 
-                num_episodes=len(a.filtered_tickers) * 3)
+        a.train(
+            num_tickers=len(a.filtered_tickers),
+            num_episodes=len(a.filtered_tickers) * 3,
+        )
         a.plot_cumulative_discounted_rewards()
-        
+
 # a2c_agent.plot_returns("MMM")
 
 # # In[ ]:

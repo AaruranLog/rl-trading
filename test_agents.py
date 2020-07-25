@@ -44,7 +44,7 @@ def test_policy_net():
     x1 = FloatTensor([TradingEnv().reset()])
     pi = net(x1, logits=False).detach()
     assert pi.min() >= 0, f"negative probability in policy: {pi}"
-    assert abs(pi.sum()-1) < 1e-3, f"doesn't sum to 1 {pi}"
+    assert abs(pi.sum() - 1) < 1e-3, f"doesn't sum to 1 {pi}"
 
     x1[0, 0] = float("nan")
     with pytest.raises(AssertionError):
@@ -88,11 +88,11 @@ class TestDQN:
 
     def test_dqn_long(self):
         dqn_agent = DQN()
-        dqn_agent.train(env_mode='train', num_tickers=10, num_episodes=10)
-        
+        dqn_agent.train(env_mode="train", num_tickers=10, num_episodes=10)
+
     def test_dqn_long(self):
         dqn_agent = DQN()
-        dqn_agent.train(env_mode='train', num_tickers=10, num_episodes=10)
+        dqn_agent.train(env_mode="train", num_tickers=10, num_episodes=10)
 
 
 @pytest.mark.incremental

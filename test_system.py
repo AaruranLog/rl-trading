@@ -7,15 +7,19 @@ import math
 
 filtered_tickers = open("filtered_tickers.txt", "r").read().split("\n")
 
+
 def test_tickers():
     assert len(filtered_tickers)
+
 
 def validate_numeric_list(x):
     assert not any(map(math.isnan, x)), "Found nan in x."
     return True
 
+
 class Test_TradingEnv:
     Constructor = TradingEnv
+
     def test_create_env(self):
         env = self.Constructor(mode="train")
         env.reset()
@@ -41,11 +45,9 @@ class Test_TradingEnv:
         h = env.close()
         assert all(h == h.fillna(np.inf)), "Invalid history"
 
-
     def test_CELG_download_fails(self):
         with pytest.raises(RemoteDataError):
             self.basic_loop(t="CELG")
-
 
     def test_action_error_float(self):
         env = self.Constructor(mode="dev")
@@ -53,13 +55,11 @@ class Test_TradingEnv:
         with pytest.raises(AssertionError):
             env.step(0.99999999999)
 
-
     def test_action_error_list(self):
         env = self.Constructor(mode="dev")
         env.reset()
         with pytest.raises(AssertionError):
             env.step([0])
-
 
     def test_action_error_list(self):
         env = self.Constructor(mode="dev")
@@ -77,23 +77,22 @@ class Test_TradingEnv:
         _ = env.step(-1)
         _ = env.step(-1)
 
-
     def test_reward(self):
         env = self.Constructor(mode="dev")
         env.reset()
         _, R, __, ___ = env.step(1)
         assert isinstance(R, float)
-        
+
 
 @pytest.mark.incremental
 class Test_CntsEnv(Test_TradingEnv):
     Constructor = ContinuousTradingEnv
-    
+
     def test_action_error_float(self):
         actions = np.linspace(-1, 1, 100)
         np.random.seed(885)
         np.random.shuffle(actions)
-    #     e = ContinuousTradingEnv('AAPL', 10, "train")
+        #     e = ContinuousTradingEnv('AAPL', 10, "train")
         e = ContinuousTradingEnv()
         for a in actions:
             e.reset()
@@ -101,8 +100,8 @@ class Test_CntsEnv(Test_TradingEnv):
 
     def test_action_error_list(self):
         pass
-            
-    def basic_loop(self,t):
+
+    def basic_loop(self, t):
         env = ContinuousTradingEnv(ticker=t)
         state = env.reset()
         validate_numeric_list(state)
@@ -117,12 +116,13 @@ class Test_CntsEnv(Test_TradingEnv):
         assert all(h == h.fillna(np.inf)), "Invalid history"
 
     def test_cnts_loop(self):
-        self.basic_loop('AAPL')
-        self.basic_loop('TSLA')
+        self.basic_loop("AAPL")
+        self.basic_loop("TSLA")
 
-        
+
 class Test_RedditEnv(Test_TradingEnv):
     Constructor = TradingWithRedditEnv
+
     def test_state_valid(self):
         env = TradingWithRedditEnv(mode="dev")
         state, text = env.reset()
@@ -137,7 +137,9 @@ class Test_RedditEnv(Test_TradingEnv):
             action = np.random.randint(low=-1, high=2)
             (next_state, next_text), r, done, _ = env.step(action)
             assert len(state) == len(next_state)
-            assert isinstance(next_text, list), f"Expected list, but got {type(vectors)}"
+            assert isinstance(
+                next_text, list
+            ), f"Expected list, but got {type(vectors)}"
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
         assert all(h == h.fillna(np.inf)), "Invalid history"
@@ -146,46 +148,55 @@ class Test_RedditEnv(Test_TradingEnv):
         self.basic_loop("aapl")
         self.basic_loop("tsla")
 
+
 @pytest.mark.incremental
 class TestValidData:
     def validate_all_data(self, t):
         e = TradingEnv(ticker=t)
         start_index = e.df_initial_index - e.WINDOW_SIZE
-        final_index = e.df_final_index 
+        final_index = e.df_final_index
         trading_data = e.data[start_index : final_index + 1]
         data_has_no_NaNs = all(trading_data == trading_data.fillna(np.inf))
         assert data_has_no_NaNs, "NaNs found"
-        
-        assert trading_data['std'].min() > 0, f"Zero standard deviation found in {t} data."
-    
+
+        assert (
+            trading_data["std"].min() > 0
+        ), f"Zero standard deviation found in {t} data."
+
     def test_mmm_download(self):
-        self.validate_all_data('MMM')
-#         basic_loop("MMM")
-    
+        self.validate_all_data("MMM")
+
+    #         basic_loop("MMM")
+
     def test_apple_download(self):
-        self.validate_all_data('AAPL')
-#         basic_loop("AAPL")
+        self.validate_all_data("AAPL")
+
+    #         basic_loop("AAPL")
 
     def test_abbv_download(self):
-        self.validate_all_data('ABBV')
-#         basic_loop("ABBV")
+        self.validate_all_data("ABBV")
+
+    #         basic_loop("ABBV")
 
     def test_amzn_download(self):
-        self.validate_all_data('AMZN')
-#         basic_loop("AMZN")
-        
+        self.validate_all_data("AMZN")
+
+    #         basic_loop("AMZN")
+
     def test_br_download(self):
-        if 'BR' in filtered_tickers:
-            self.validate_all_data('BR')
-#             basic_loop("BR")
-    
+        if "BR" in filtered_tickers:
+            self.validate_all_data("BR")
+
+    #             basic_loop("BR")
+
     def test_all_tickers_download_and_valid(self):
         errors = {}
         for t in filtered_tickers:
             try:
                 self.validate_all_data(t)
             except AssertionError as ex:
-                    errors[t] = ex
+                errors[t] = ex
         if len(errors):
-            raise AssertionError(f'Failed {len(errors)}/{len(filtered_tickers)}, {errors.keys()}')
-    
+            raise AssertionError(
+                f"Failed {len(errors)}/{len(filtered_tickers)}, {errors.keys()}"
+            )
