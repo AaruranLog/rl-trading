@@ -342,7 +342,7 @@ class A2C(BaseAgent):
             self.policy.cuda()
             self.model.cuda()
         
-        self.optimizer = optim.SGD(
+        self.optimizer = optim.Adam(
             chain(self.model.parameters(), self.policy.parameters()), self.LR
         )
 
@@ -352,7 +352,7 @@ class A2C(BaseAgent):
         action = None
         while True:
             state_tensor = FloatTensor([state])
-            action = self.policy.sample_from_softmax_policy(state_tensor)
+            action = self.policy.sample_from_softmax_policy(state_tensor)b
             position = self.convert_action(action)
             next_state, reward, done, _ = environment.step(position)
             next_state_tensor = FloatTensor([next_state])
@@ -366,22 +366,18 @@ class A2C(BaseAgent):
 
     def learn(self, state_tensor, action, next_state_tensor, reward):
         n = self.steps_done
+        expected_q = reward + self.gamma * self.model(next_state_tensor).max(dim=1)[0]
         q_values = self.model(state_tensor)
-        q_values_detached = q_values.detach()
+        current_q = q_values.gather(1, action).squeeze(0)
+#         assert current_q.shape == expected_q.shape, f"Wrong shapes for q-values {current_q.shape, expected_q.shape}"
+        # TODO: Use F.smooth_l1_loss with out max-bounding the prices, as this 
+        # loss function can possibly remedy
+        q_loss = F.mse_loss(current_q, expected_q.detach())
+        
         pi = self.policy(state_tensor, logits=False)
-        with torch.no_grad():
-            pi_detached = pi.detach()
-            q = q_values_detached.gather(1, action)
-            future_q = reward + self.gamma * self.model(next_state_tensor).max(dim=1)[0]
-            delta = future_q - q
-
-            A = future_q - torch.dot(
-                q_values_detached.squeeze(0), pi_detached.squeeze(0)
-            )
-
-        q_loss = delta * q_values.gather(1, action)
+        A = expected_q - torch.dot(q_values.squeeze(0), pi.squeeze(0))
         pi_a = pi.gather(1, action)
-        policy_loss = A * torch.log(pi_a)
+        policy_loss = - A.detach() * torch.log(pi_a)
 
         loss = (self.gamma ** n) * (policy_loss + q_loss)
 
@@ -392,11 +388,11 @@ class A2C(BaseAgent):
 
 
 if __name__ == "__main__":
-#     agents = [DQN(), A2C()]
-    agents = [A2C()]
+    agents = [DQN(), A2C()]
+#     agents = [A2C()]
     for a in agents:
         a.train(num_tickers=len(a.filtered_tickers), 
-                num_episodes=len(a.filtered_tickers) * 1)
+                num_episodes=len(a.filtered_tickers) * 3)
         a.plot_cumulative_discounted_rewards()
         
 # a2c_agent.plot_returns("MMM")
