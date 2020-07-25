@@ -51,21 +51,20 @@ class TradingEnv(gym.Env):
         self.prices = web.DataReader(
             self.ticker, "yahoo", start=start - prepadding, end=end + postpadding, session=self.session
         )["Close"]
-
+        prices_mean = self.prices.expanding().mean()
+        prices_std = self.prices.expanding().std()
+        prices_std[0] = prices_std[1]
+        self.prices_normalized = (self.prices - prices_mean) / prices_std
         # We compute the mean, and standard deviation of the first WINDOW_SIZE days, and use this to standardize
         # the entire time series.
-        assert (
-            self.WINDOW_SIZE > 1
-        ), "WINDOW_SIZE is too small"
+        assert self.WINDOW_SIZE > 1, "WINDOW_SIZE is too small"
 
         self.data = pd.DataFrame()
-        # We must normalize the data for numerical stability. 
-        # The data is non-stationary, so any summarizing statistic from the initial window
-        # may not hold true in the future. Hence, we use a simply division by 1e6
+        # We must rescale the data dynamically for numerical stability. 
         min_prices = self.prices.expanding().min()
         max_prices = self.prices.expanding().max()
         width = max_prices - min_prices
-        width[0] = 1
+        width[0] = width[1]
         center = self.prices.expanding().median()
         scaled_prices = (self.prices - center) / width
         self.data["x"] = scaled_prices
@@ -79,7 +78,7 @@ class TradingEnv(gym.Env):
         self.data['std'][self.data['std'] == 0] = smallest_nonzero_std
         # Use additive returns, because the reward is computed using the additive return
 #         rets = self.prices - self.prices.shift(-1)
-        rets = self.prices.diff(-1)
+        rets = self.prices.diff().shift(-1)
 
         self.data["sharpe"] = (
             rets.rolling(self.WINDOW_SIZE).mean() / rets.rolling(self.WINDOW_SIZE).std()
@@ -126,7 +125,7 @@ class TradingEnv(gym.Env):
         return self.prices[self.df_index + diff]
 
     def _get_normalized_price(self, diff=0):
-        return np.power(10, (self.data["x"][self.df_index + diff]))
+        return self.prices_normalized[self.df_index + diff]
 
     def _get_current_timestamp(self):
         return self.data.index[self.df_index]
@@ -292,9 +291,9 @@ class TradingWithRedditEnv(TradingEnv):
 
     
 class ContinuousTradingEnv(TradingEnv):
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(
-            **kwargs
+            *args, **kwargs
         )
 
     def step(self, action):
