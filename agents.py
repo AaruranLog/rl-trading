@@ -352,7 +352,7 @@ class A2C(BaseAgent):
         action = None
         while True:
             state_tensor = FloatTensor([state])
-            action = self.policy.sample_from_softmax_policy(state_tensor)b
+            action = self.policy.sample_from_softmax_policy(state_tensor)
             position = self.convert_action(action)
             next_state, reward, done, _ = environment.step(position)
             next_state_tensor = FloatTensor([next_state])
