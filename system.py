@@ -14,7 +14,7 @@ from wsb_pipeline import get_all_embeddings
 import requests_cache
 import datetime
 import math
-
+pd.options.mode.chained_assignment = None
 
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
@@ -25,8 +25,9 @@ class TradingEnv(gym.Env):
         cache_name="cache", backend="sqlite", expire_after=expire_after
     )
 
-    def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
+    def __init__(self, ticker="AAPL", target_volatility=1, mode="train", window_size=14):
         self.ticker = ticker
+        self.WINDOW_SIZE = window_size
         self.window = pd.Timedelta(days=self.WINDOW_SIZE)
         assert mode in set(
             ["train", "validation", "test", "dev"]
@@ -38,7 +39,6 @@ class TradingEnv(gym.Env):
         self.actions_list = []
         self.values = [self.INITIAL_BALANCE]
         self.cumulative_costs = [0]
-
         self._compute_simple_states()
 
     def _compute_simple_states(self):
@@ -62,31 +62,36 @@ class TradingEnv(gym.Env):
             end=end + postpadding,
             session=self.session,
         )["Close"]
-        prices_mean = self.prices.expanding().mean()
-        prices_std = self.prices.expanding().std()
-        prices_std[0] = prices_std[1]
-        self.prices_normalized = (self.prices - prices_mean) / prices_std
+#         prices_mean = self.prices.expanding().mean()
+#         prices_std = self.prices.expanding().std()
+#         prices_std[0] = prices_std[1]
+#         self.prices_normalized = (self.prices - prices_mean) / prices_std
+        
+        # We must rescale the data dynamically for numerical stability.
+        min_prices = self.prices.expanding().min()
+        max_prices = self.prices.expanding().max()
+        assert not all(min_prices == max_prices), "Price doesn't change!"
+        width = max_prices - min_prices
+        width[0] = width[1]
+        center = self.prices.expanding().median()
+        scaled_prices = (self.prices - center) / width
+        self.prices_normalized = scaled_prices
         # We compute the mean, and standard deviation of the first WINDOW_SIZE days, and use this to standardize
         # the entire time series.
         assert self.WINDOW_SIZE > 1, "WINDOW_SIZE is too small"
 
         self.data = pd.DataFrame()
-        # We must rescale the data dynamically for numerical stability.
-        min_prices = self.prices.expanding().min()
-        max_prices = self.prices.expanding().max()
-        width = max_prices - min_prices
-        width[0] = width[1]
-        center = self.prices.expanding().median()
-        scaled_prices = (self.prices - center) / width
-        self.data["x"] = scaled_prices
+        
+#         self.data["x"] = scaled_prices
+        self.data['x'] = scaled_prices
         self.data["diff_x"] = self.data["x"].diff(-1)
 
         self.mu_hat = self.data["x"][: self.WINDOW_SIZE].mean()
         self.sigma_hat = self.data["x"][: self.WINDOW_SIZE].std()
 
-        self.data["std"] = self.data["diff_x"].rolling(self.WINDOW_SIZE).std()
-        smallest_nonzero_std = self.data["std"][self.data["std"] > 0].min()
-        self.data["std"][self.data["std"] == 0] = smallest_nonzero_std
+        self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE*2).std()
+        smallest_nonzero_std = self.data["std"][self.data["std"] > 0].expanding().min()
+        self.data["std"][self.data["std"] == 0] = smallest_nonzero_std[self.data["std"] == 0]
         # Use additive returns, because the reward is computed using the additive return
         #         rets = self.prices - self.prices.shift(-1)
         rets = self.prices.diff().shift(-1)
@@ -96,24 +101,21 @@ class TradingEnv(gym.Env):
         )
         self.data["sharpe"][self.data["sharpe"].apply(math.isnan)] = 0
 
-        exp_short = self.data["diff_x"].ewm(span=self.short_time, adjust=False).mean()
-        exp_long = self.data["diff_x"].ewm(span=self.long_time, adjust=False).mean()
+        exp_short = self.data["x"].ewm(span=self.short_time, adjust=False).mean()
+        exp_long = self.data["x"].ewm(span=self.long_time, adjust=False).mean()
         self.data["q"] = (
             exp_short - exp_long
         )  # / self.prices.rolling(self.short_time).std()
 
-        #         macd = ti.macd(
-        #             self.prices.values,
-        #             short_period=self.short_time,
-        #             long_period=self.long_time,
-        #             signal_period=self.WINDOW_SIZE,
-        #         )
+        macd = ti.macd(
+                    self.prices.values,
+                    short_period=self.short_time,
+                    long_period=self.long_time,
+                    signal_period=self.WINDOW_SIZE,
+        )
 
-        #         self.data["macd_0"] = self.data["macd_1"] = self.data["macd_2"] = np.nan
-        #         self.data["macd_0"][self.long_time - 1 :] = macd[0]
-        #         self.data["macd_1"][self.long_time - 1 :] = macd[1]
-        #         self.data["macd_2"][self.long_time - 1 :] = macd[2]
-
+        self.data["macd"] = 0
+        self.data["macd"][self.long_time - 1:] = macd[2]
         # to look up current price from self.data, irrespective of the date break due to the weekend
         self.df_initial_index = self.data.index.get_loc(self.start)
         self.df_index = self.df_initial_index
@@ -162,9 +164,22 @@ class TradingEnv(gym.Env):
         return self._get_current_state()
 
     def _compute_reward_function(self, action):
-        next_price = self._get_normalized_price(diff=1)
-        price = self._get_normalized_price()
-        r = next_price - price
+#         x = self.returns_list
+#         if len(x) == 1:
+#             return 0
+# #         elif len(x) < 30:
+# #             return x[-1] - x[-2]
+#         long_term_value_estimate = np.mean(x[:-10])
+#         short_term_value_estimate = np.mean(x[:-5])
+#         vol_estimate = np.std(x[:-15])
+#         vol_penalty = max(3*vol_estimate, self.target_volatility)
+#         R = (short_term_value_estimate - long_term_value_estimate) / vol_penalty
+#         return R
+        
+        
+        next_price = np.log(self._get_normalized_price(diff=1))
+        price = np.log(self._get_normalized_price())
+        r = (next_price-price)
         #         r =
         mu = 1
 
@@ -178,15 +193,6 @@ class TradingEnv(gym.Env):
             * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
         )
         R = mu * (term1 - term2)
-
-        # Additive Returns as reward function
-        # if action == 1:
-        #     R = r - TRANSACTION_COST
-        # elif action == -1:
-        #     R = -r - TRANSACTION_COST
-        # elif action == 0:
-        #     R = 0 - TRANSACTION_COST
-        # R = action * r + abs(action - prev_action) * TRANSACTION_COST * price
         return R
 
     def step(self, action):
@@ -199,11 +205,12 @@ class TradingEnv(gym.Env):
             Outputs: a tuple (observation/state, step_reward, is_done, info)
         """
         assert action in [-1, 0, 1], f"Got {action} but expected one of {-1, 0, 1}"
-
+        prev_roi = 0 if len(self.returns_list) == 0 else self.returns_list[-1]
         roi = self._get_new_return(action)
         self.returns_list.append(roi)
 
-        R = self._compute_reward_function(action)
+#         R = self._compute_reward_function(action)
+        R = roi #- prev_roi
         self.rewards_list.append(R)
         self.actions_list.append(action)
         self.df_index += 1
@@ -240,10 +247,10 @@ class TradingEnv(gym.Env):
         current_price = self._get_raw_price()
         next_price = self._get_raw_price(diff=1)
         prev_a = self.actions_list[-1] if len(self.actions_list) > 0 else 0
-
-        cost_of_trade = (
-            abs(prev_a - a) * self.TRANSACTION_COST * past_value / current_price
-        )
+        
+        n_shares = past_value / current_price
+        cost_of_trade = abs(a - prev_a) * self.TRANSACTION_COST * n_shares               
+                
         self.cumulative_costs.append(cost_of_trade + self.cumulative_costs[-1])
         change_in_value = (next_price / current_price - 1) * a * past_value
         if a == -1:
@@ -256,12 +263,6 @@ class TradingEnv(gym.Env):
             if (new_value == self.INITIAL_BALANCE)
             else (new_value - self.INITIAL_BALANCE) / self.cumulative_costs[-1]
         )
-
-        #         if new_value < 5 * self.TRANSACTION_COST:
-        #             warnings.warn(f"Low portfolio value {new_value}")
-        #         if new_value <= 0:
-        #             warnings.warn(f"Agent fucked up; portfolio value is {new_value}.")
-
         return roi
 
 

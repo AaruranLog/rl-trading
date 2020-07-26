@@ -275,7 +275,7 @@ class DQN(BaseAgent):
         )
 
         # loss is measured from error between current and newly expected Q values
-        loss = F.mse_loss(current_q_values, expected_q_values)
+        loss = F.smooth_l1_loss(current_q_values, expected_q_values)
 
         # backpropagation of loss to QNetwork
         self.optimizer.zero_grad()
@@ -378,7 +378,7 @@ class A2C(BaseAgent):
         #         assert current_q.shape == expected_q.shape, f"Wrong shapes for q-values {current_q.shape, expected_q.shape}"
         # TODO: Use F.smooth_l1_loss with out max-bounding the prices, as this
         # loss function can possibly remedy
-        q_loss = F.mse_loss(current_q, expected_q.detach())
+        q_loss = F.smooth_l1_loss(current_q, expected_q.detach())
 
         pi = self.policy(state_tensor, logits=False)
         A = expected_q - torch.dot(q_values.squeeze(0), pi.squeeze(0))

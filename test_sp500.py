@@ -13,9 +13,6 @@ def test_blacklist():
             Test_TradingEnv.basic_loop(b)
 
 
-#             print(e_info)
-
-
 def test_filtered():
     with open("filtered_tickers.txt", "r") as src:
         filtered_tickers = src.read().split("\n")
