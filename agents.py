@@ -109,14 +109,13 @@ class BaseAgent:
     BATCH_SIZE = 16  # Q-learning batch size
     TARGET_UPDATE = 100  # frequency of target update
     BUFFER_SIZE = 100  # capacity of the replay buffer
-
+    ENV_CONSTRUCTOR = TradingEnv
     def __init__(self, gamma=0.8):
         assert 0 < gamma < 1, f"Invalid gamma: {gamma}"
         sns.set()
         self.gamma = gamma
         self.memory = ReplayMemory(self.BUFFER_SIZE)
         self.history = pd.DataFrame()
-        #         self.rewards_history = []
         self.name = ""
         self.steps_done = 0
         with open("filtered_tickers.txt", "r") as src:
@@ -156,15 +155,12 @@ class BaseAgent:
         #         assert position in [-1,0,1]
         return position.item()
 
-    def train(self, env_mode="train", num_tickers=20, num_episodes=5):
+    def train(self, env_mode="train", num_tickers=20, episodes_per_ticker=5):
         """
             Trains the agent for num_episodes episodes, looping over the approved
             list of tickers (filtered by num_tickers). This is a convenience function.
         """
         num_tickers = min(num_tickers, len(self.filtered_tickers))
-        if num_tickers == np.Inf:
-            num_tickers = len(self.filtered_tickers)
-        self.history = pd.DataFrame()
         for i in tqdm(range(num_episodes)):
             ticker = self.filtered_tickers[i % num_tickers]
             env = TradingEnv(ticker=ticker, mode=env_mode)
@@ -378,9 +374,6 @@ class A2C(BaseAgent):
         expected_q = reward + self.gamma * self.model(next_state_tensor).max(dim=1)[0]
         q_values = self.model(state_tensor)
         current_q = q_values.gather(1, action).squeeze(0)
-        #         assert current_q.shape == expected_q.shape, f"Wrong shapes for q-values {current_q.shape, expected_q.shape}"
-        # TODO: Use F.smooth_l1_loss with out max-bounding the prices, as this
-        # loss function can possibly remedy
         q_loss = F.smooth_l1_loss(current_q, expected_q.detach())
 
         pi = self.policy(state_tensor, logits=False)
@@ -395,16 +388,131 @@ class A2C(BaseAgent):
         loss.backward()
         self.optimizer.step()
 
+        
+class DeterministicPolicyNetwork(nn.Module):
+    def __init__(self):
+        nn.Module.__init__(self)
+        self.l1 = nn.Linear(STATE_DIM, HIDDEN_LAYER)
+        self.l2 = nn.Linear(HIDDEN_LAYER, HIDDEN_LAYER)
+        self.l3 = nn.Linear(HIDDEN_LAYER, 1)
 
+    def forward(self, x):
+        """
+            returns the position (in [-1, 1])
+        """
+        assert not torch.isnan(x).any(), f"NaN in input {x}"
+        x = F.relu(self.l1(x))
+        x = F.relu(self.l2(x))
+        x = self.l3(x)
+        return torch.clamp(x, -1, 1)
+    
+    
+class DeterministicQNetwork(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.l1_s = nn.Linear(STATE_DIM, HIDDEN_LAYER)
+        self.l1_p = nn.Linear(1, HIDDEN_LAYER)
+        self.l2 = nn.Linear(2 * HIDDEN_LAYER, 2 * HIDDEN_LAYER)
+        self.l3 = nn.Linear(2 * HIDDEN_LAYER, 1)
+        
+    def forward(self, s, p):
+        """
+            maps (state, position) to a q-value
+        """
+        h1 = F.relu(self.l1_s(s))
+        h2 = F.relu(self.l1_p(p))
+        cat = torch.cat([h1, h2], dim=1)
+        q = F.relu(self.l2(cat))
+        q = self.l3(q)
+        return q    
+
+    
+class DDPG(BaseAgent):
+    ENV_CONSTRUCTOR = ContinuousTradingEnv
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = "DDPG"
+        self.policy = DeterministicPolicyNetwork()
+        self.policy_opt = optim.Adam(self.policy.parameters())
+        
+        self.model = DeterministicQNetwork()
+        self.model_opt = optim.Adam(self.model.parameters())
+        
+    def run_episode(self, environment):
+        state = environment.reset()
+        self.steps_done = 0
+        while True:
+            state_tensor = FloatTensor([state])
+            assert not torch.isnan(state_tensor).any()
+            posn = self.policy(state_tensor)
+            next_state, reward, done, _ = environment.step(posn.item())
+            next_state_tensor = FloatTensor([next_state])
+            self.learn(state_tensor, posn, next_state_tensor, reward)
+            state = next_state
+            self.steps_done += 1
+            if done:
+                break
+        history = environment.close()
+        return history
+    
+    def learn(self, state_tensor, posn, next_state_tensor, reward):
+        n = self.steps_done
+        next_posn = self.policy(next_state_tensor)
+        expected_q = reward + self.gamma * self.model(next_state_tensor, next_posn)
+        q_values = self.model(state_tensor, posn)
+        current_q = q_values
+
+        q_loss = F.smooth_l1_loss(current_q, expected_q.detach()) * (self.gamma ** n)
+        
+        self.model_opt.zero_grad()
+        q_loss.backward()
+        self.model_opt.step()
+        
+        suggested_posn = self.policy(state_tensor)
+        policy_loss = -self.model(state_tensor, suggested_posn) * (self.gamma ** n)
+        
+        self.policy_opt.zero_grad()
+        policy_loss.backward()
+        self.policy_opt.step()
+        
+        
+    def train(self, env_mode="train", num_tickers=20, num_episodes=5, **kwargs):
+        """
+            Trains the agent for num_episodes episodes, looping over the approved
+            list of tickers (filtered by num_tickers). This is a convenience function.
+        """
+        num_tickers = min(num_tickers, len(self.filtered_tickers))
+        if num_tickers == np.Inf:
+            num_tickers = len(self.filtered_tickers)
+        self.history = pd.DataFrame()
+        for i in tqdm(range(num_episodes)):
+            ticker = self.filtered_tickers[i % num_tickers]
+            env = ContinuousTradingEnv(ticker=ticker, **kwargs)
+            history = self.run_episode(env)
+            history["ticker"] = ticker
+            history["episode"] = i + 1
+            self.history = pd.concat((self.history, history))
+        self.history = self.history.reset_index("Date", drop=True)
+
+def main():
+    with open("filtered_tickers.txt", "r") as src:
+        filtered_tickers = src.read().split("\n")
+
+    agent_constructors = [DQN, A2C]
+    training_history = pd.DataFrame()
+    for con in agent_constructors:
+        for t in tqdm(filtered_tickers):
+            a = con()
+            e = a.ENV_CONSTRUCTOR(ticker=t, mode="dev")
+            h = a.run_episode(e)
+            h['agent'] = a.name
+            h['t'] = range(len(h))
+            training_history = pd.concat((training_history, h))
+
+#         a.plot_cumulative_discounted_rewards()
+        
 if __name__ == "__main__":
-    agents = [DQN(), A2C()]
-    #     agents = [A2C()]
-    for a in agents:
-        a.train(
-            num_tickers=len(a.filtered_tickers),
-            num_episodes=len(a.filtered_tickers) * 3,
-        )
-        a.plot_cumulative_discounted_rewards()
+    main()
 
 # a2c_agent.plot_returns("MMM")
 
