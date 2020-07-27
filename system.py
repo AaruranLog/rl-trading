@@ -89,7 +89,7 @@ class TradingEnv(gym.Env):
         self.mu_hat = self.data["x"][: self.WINDOW_SIZE].mean()
         self.sigma_hat = self.data["x"][: self.WINDOW_SIZE].std()
 
-        self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE*2).std()
+        self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
         smallest_nonzero_std = self.data["std"][self.data["std"] > 0].expanding().min()
         self.data["std"][self.data["std"] == 0] = smallest_nonzero_std[self.data["std"] == 0]
         # Use additive returns, because the reward is computed using the additive return
@@ -101,11 +101,11 @@ class TradingEnv(gym.Env):
         )
         self.data["sharpe"][self.data["sharpe"].apply(math.isnan)] = 0
 
-        exp_short = self.data["x"].ewm(span=self.short_time, adjust=False).mean()
-        exp_long = self.data["x"].ewm(span=self.long_time, adjust=False).mean()
-        self.data["q"] = (
-            exp_short - exp_long
-        )  # / self.prices.rolling(self.short_time).std()
+#         exp_short = self.data["x"].ewm(span=self.short_time, adjust=False).mean()
+#         exp_long = self.data["x"].ewm(span=self.long_time, adjust=False).mean()
+#         self.data["q"] = (
+#             exp_short - exp_long
+#         )  # / self.prices.rolling(self.short_time).std()
 
         macd = ti.macd(
                     self.prices.values,
