@@ -84,6 +84,9 @@ class QNetwork(nn.Module):
         return x
 
     def sample_from_softmax_policy(self, batch_state):
+        """
+            Maps a batch of states into actions in {-1,0,1}
+        """
         batch_q_values = self.forward(batch_state)
         batch_pi = F.softmax(batch_q_values, dim=1)
         batch_size = batch_pi.shape[0]
