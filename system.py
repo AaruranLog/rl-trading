@@ -62,11 +62,7 @@ class TradingEnv(gym.Env):
             end=end + postpadding,
             session=self.session,
         )["Close"]
-#         prices_mean = self.prices.expanding().mean()
-#         prices_std = self.prices.expanding().std()
-#         prices_std[0] = prices_std[1]
-#         self.prices_normalized = (self.prices - prices_mean) / prices_std
-        
+
         # We must rescale the data dynamically for numerical stability.
         min_prices = self.prices.expanding().min()
         max_prices = self.prices.expanding().max()
@@ -82,7 +78,6 @@ class TradingEnv(gym.Env):
 
         self.data = pd.DataFrame()
         
-#         self.data["x"] = scaled_prices
         self.data['x'] = scaled_prices
         self.data["diff_x"] = self.data["x"].diff(-1)
 
@@ -100,12 +95,6 @@ class TradingEnv(gym.Env):
             rets.rolling(self.WINDOW_SIZE).mean() / rets.rolling(self.WINDOW_SIZE).std()
         )
         self.data["sharpe"][self.data["sharpe"].apply(math.isnan)] = 0
-
-#         exp_short = self.data["x"].ewm(span=self.short_time, adjust=False).mean()
-#         exp_long = self.data["x"].ewm(span=self.long_time, adjust=False).mean()
-#         self.data["q"] = (
-#             exp_short - exp_long
-#         )  # / self.prices.rolling(self.short_time).std()
 
         macd = ti.macd(
                     self.prices.values,
@@ -128,7 +117,7 @@ class TradingEnv(gym.Env):
         if mode == "train":
             return pd.Timestamp("2014-01-06"), pd.Timestamp("2017-12-28")
         elif mode == "dev":
-            return pd.Timestamp("2014-01-06"), pd.Timestamp("2015-01-02")
+            return pd.Timestamp("2014-01-06"), pd.Timestamp("2015-01-01")
         elif mode == "test":
             return pd.Timestamp("2018-01-01"), pd.Timestamp("2018-12-31")
         else:
@@ -163,24 +152,12 @@ class TradingEnv(gym.Env):
         self.cumulative_costs = [0]
         return self._get_current_state()
 
-    def _compute_reward_function(self, action):
-#         x = self.returns_list
-#         if len(x) == 1:
-#             return 0
-# #         elif len(x) < 30:
-# #             return x[-1] - x[-2]
-#         long_term_value_estimate = np.mean(x[:-10])
-#         short_term_value_estimate = np.mean(x[:-5])
-#         vol_estimate = np.std(x[:-15])
-#         vol_penalty = max(3*vol_estimate, self.target_volatility)
-#         R = (short_term_value_estimate - long_term_value_estimate) / vol_penalty
-#         return R
-        
-        
-        next_price = np.log(self._get_normalized_price(diff=1))
-        price = np.log(self._get_normalized_price())
+    def _compute_reward_function(self, action):     
+#         next_price = np.log(self._get_normalized_price(diff=1))
+#         price = np.log(self._get_normalized_price())
+        next_price = self._get_normalized_price(diff=1)
+        price = self._get_normalized_price()
         r = (next_price-price)
-        #         r =
         mu = 1
 
         sigma = self.data["std"][self.df_index]
