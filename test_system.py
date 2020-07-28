@@ -45,7 +45,8 @@ class Test_TradingEnv:
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
         assert_frame_equal(h, h.fillna(np.inf))
-#         assert all(h == h.fillna(np.inf)), "Invalid history"
+
+    #         assert all(h == h.fillna(np.inf)), "Invalid history"
 
     def test_CELG_download_fails(self):
         with pytest.raises(RemoteDataError):
@@ -116,7 +117,8 @@ class Test_CntsEnv(Test_TradingEnv):
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
         assert_frame_equal(h, h.fillna(np.inf))
-#         assert all(h == h.fillna(np.inf)), "Invalid history"
+
+    #         assert all(h == h.fillna(np.inf)), "Invalid history"
 
     def test_cnts_loop(self):
         self.basic_loop("AAPL")
@@ -146,7 +148,6 @@ class Test_RedditEnv(Test_TradingEnv):
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
         assert_frame_equal(h, h.fillna(np.inf))
-#         assert all(h == h.fillna(np.inf)), "Invalid history"
 
     def test_reddit_loop(self):
         self.basic_loop("aapl")
@@ -178,11 +179,9 @@ class TestValidData:
     def test_amzn_download(self):
         self.validate_all_data("AMZN")
 
-
     def test_br_download(self):
         if "BR" in filtered_tickers:
             self.validate_all_data("BR")
-
 
     def test_all_tickers_download_and_valid(self):
         errors = {}

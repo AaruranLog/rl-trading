@@ -14,7 +14,9 @@ from wsb_pipeline import get_all_embeddings
 import requests_cache
 import datetime
 import math
+
 pd.options.mode.chained_assignment = None
+
 
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
@@ -25,7 +27,9 @@ class TradingEnv(gym.Env):
         cache_name="cache", backend="sqlite", expire_after=expire_after
     )
 
-    def __init__(self, ticker="AAPL", target_volatility=1, mode="train", window_size=14):
+    def __init__(
+        self, ticker="AAPL", target_volatility=1, mode="train", window_size=14
+    ):
         self.ticker = ticker
         self.WINDOW_SIZE = window_size
         self.window = pd.Timedelta(days=self.WINDOW_SIZE)
@@ -37,7 +41,7 @@ class TradingEnv(gym.Env):
         self.returns_list = []
         self.rewards_list = []
         self.actions_list = []
-        
+
         self.cash = [self.INITIAL_BALANCE]
         self.investment_value = [0]
         self.cumulative_costs = [0]
@@ -80,8 +84,8 @@ class TradingEnv(gym.Env):
         assert self.WINDOW_SIZE > 1, "WINDOW_SIZE is too small"
 
         self.data = pd.DataFrame()
-        
-        self.data['x'] = scaled_prices
+
+        self.data["x"] = scaled_prices
         self.data["diff_x"] = self.data["x"].diff(-1)
 
         self.mu_hat = self.data["x"][: self.WINDOW_SIZE].mean()
@@ -89,7 +93,9 @@ class TradingEnv(gym.Env):
 
         self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
         smallest_nonzero_std = self.data["std"][self.data["std"] > 0].expanding().min()
-        self.data["std"][self.data["std"] == 0] = smallest_nonzero_std[self.data["std"] == 0]
+        self.data["std"][self.data["std"] == 0] = smallest_nonzero_std[
+            self.data["std"] == 0
+        ]
         # Use additive returns, because the reward is computed using the additive return
         #         rets = self.prices - self.prices.shift(-1)
         rets = self.prices.diff().shift(-1)
@@ -100,14 +106,14 @@ class TradingEnv(gym.Env):
         self.data["sharpe"][self.data["sharpe"].apply(math.isnan)] = 0
 
         macd = ti.macd(
-                    self.prices.values,
-                    short_period=self.short_time,
-                    long_period=self.long_time,
-                    signal_period=self.WINDOW_SIZE,
+            self.prices.values,
+            short_period=self.short_time,
+            long_period=self.long_time,
+            signal_period=self.WINDOW_SIZE,
         )
 
         self.data["macd"] = 0
-        self.data["macd"][self.long_time - 1:] = macd[2]
+        self.data["macd"][self.long_time - 1 :] = macd[2]
         # to look up current price from self.data, irrespective of the date break due to the weekend
         self.df_initial_index = self.data.index.get_loc(self.start)
         self.df_index = self.df_initial_index
@@ -156,12 +162,12 @@ class TradingEnv(gym.Env):
         self.cumulative_costs = [0]
         return self._get_current_state()
 
-    def _compute_reward_function(self, action):     
-#         next_price = np.log(self._get_normalized_price(diff=1))
-#         price = np.log(self._get_normalized_price())
+    def _compute_reward_function(self, action):
+        #         next_price = np.log(self._get_normalized_price(diff=1))
+        #         price = np.log(self._get_normalized_price())
         next_price = self._get_normalized_price(diff=1)
         price = self._get_normalized_price()
-        r = (next_price-price)
+        r = next_price - price
         mu = 1
 
         sigma = self.data["std"][self.df_index]
@@ -233,28 +239,29 @@ class TradingEnv(gym.Env):
             else (latest_value - self.INITIAL_BALANCE) / total_cost
         )
         return roi
-    
+
     def _update_values(self, a):
         current_value = self.cash[-1] + self.investment_value[-1]
-        preserved_value = current_value * (1 - np.abs(a)) # new cash balance
+        preserved_value = current_value * (1 - np.abs(a))  # new cash balance
         invested_value = current_value * np.abs(a)
-        change_in_invested_value = self.prices_pct_change[self.df_index] * np.sign(a) * invested_value
+        change_in_invested_value = (
+            self.prices_pct_change[self.df_index] * np.sign(a) * invested_value
+        )
         if a < 0:
-            change_in_invested_value = min(change_in_invested_value, invested_value) # max return from a short sale
+            change_in_invested_value = min(
+                change_in_invested_value, invested_value
+            )  # max return from a short sale
         new_invested_value = invested_value + change_in_invested_value
-        
-        # no additional cost if the position is constant, 
+
+        # no additional cost if the position is constant,
         # cost of admission (ie paying the market) and cost of investment (i.e. the lost cash)
         prev_a = self.actions_list[-1] if len(self.actions_list) else 0
-        cost_of_trade = np.abs(prev_a-a) * current_value * (1 + self.TRANSACTION_COST)
-        
+        cost_of_trade = np.abs(prev_a - a) * current_value * (1 + self.TRANSACTION_COST)
+
         self.cash.append(preserved_value)
         self.cumulative_costs.append(self.cumulative_costs[-1] + cost_of_trade)
         self.investment_value.append(new_invested_value)
-            
-            
-        
-        
+
 
 class TradingWithRedditEnv(TradingEnv):
     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):

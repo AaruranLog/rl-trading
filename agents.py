@@ -110,6 +110,7 @@ class BaseAgent:
     TARGET_UPDATE = 100  # frequency of target update
     BUFFER_SIZE = 100  # capacity of the replay buffer
     ENV_CONSTRUCTOR = TradingEnv
+
     def __init__(self, gamma=0.8):
         assert 0 < gamma < 1, f"Invalid gamma: {gamma}"
         sns.set()
@@ -128,7 +129,7 @@ class BaseAgent:
             Must return environment.close()
         """
         pass
-        
+
     def plot_cumulative_discounted_rewards(self):
         raise NotImplementedError("Needs to be refactored.")
         rl_data = self.history
@@ -172,7 +173,6 @@ class BaseAgent:
                 history["t"] = range(len(history))
                 self.history = pd.concat((self.history, history))
         self.history = self.history.reset_index("Date", drop=True)
-
 
     def plot_returns(self, ticker):
         h = self.history
@@ -297,7 +297,7 @@ class LongOnlyAgent(BaseAgent):
             self.steps_done += 1
 
         return environment.close()
-    
+
     def train(self, num_tickers=20, episodes_per_ticker=5, **kwargs):
         """
             Trains the agent for episode_per_ticker, on each of num_tickers, looping over the approved
@@ -402,7 +402,7 @@ class A2C(BaseAgent):
         loss.backward()
         self.optimizer.step()
 
-        
+
 class DeterministicPolicyNetwork(nn.Module):
     def __init__(self):
         nn.Module.__init__(self)
@@ -419,8 +419,8 @@ class DeterministicPolicyNetwork(nn.Module):
         x = F.relu(self.l2(x))
         x = self.l3(x)
         return torch.clamp(x, -1, 1)
-    
-    
+
+
 class DeterministicQNetwork(nn.Module):
     def __init__(self):
         super().__init__()
@@ -428,7 +428,7 @@ class DeterministicQNetwork(nn.Module):
         self.l1_p = nn.Linear(1, HIDDEN_LAYER)
         self.l2 = nn.Linear(2 * HIDDEN_LAYER, 2 * HIDDEN_LAYER)
         self.l3 = nn.Linear(2 * HIDDEN_LAYER, 1)
-        
+
     def forward(self, s, p):
         """
             maps (state, position) to a q-value
@@ -438,20 +438,21 @@ class DeterministicQNetwork(nn.Module):
         cat = torch.cat([h1, h2], dim=1)
         q = F.relu(self.l2(cat))
         q = self.l3(q)
-        return q    
+        return q
 
-    
+
 class DDPG(BaseAgent):
     ENV_CONSTRUCTOR = ContinuousTradingEnv
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "DDPG"
         self.policy = DeterministicPolicyNetwork()
         self.policy_opt = optim.Adam(self.policy.parameters())
-        
+
         self.model = DeterministicQNetwork()
         self.model_opt = optim.Adam(self.model.parameters())
-        
+
     def run_episode(self, environment):
         state = environment.reset()
         self.steps_done = 0
@@ -468,7 +469,7 @@ class DDPG(BaseAgent):
                 break
         history = environment.close()
         return history
-    
+
     def learn(self, state_tensor, posn, next_state_tensor, reward):
         n = self.steps_done
         next_posn = self.policy(next_state_tensor)
@@ -477,19 +478,19 @@ class DDPG(BaseAgent):
         current_q = q_values
 
         q_loss = F.smooth_l1_loss(current_q, expected_q.detach()) * (self.gamma ** n)
-        
+
         self.model_opt.zero_grad()
         q_loss.backward()
         self.model_opt.step()
-        
+
         suggested_posn = self.policy(state_tensor)
         policy_loss = -self.model(state_tensor, suggested_posn) * (self.gamma ** n)
-        
+
         self.policy_opt.zero_grad()
         policy_loss.backward()
         self.policy_opt.step()
-        
-        
+
+
 #     def train(self, num_tickers=20, num_episodes=5, **kwargs):
 #         """
 #             Trains the agent for num_episodes episodes, looping over the approved
@@ -508,6 +509,7 @@ class DDPG(BaseAgent):
 #             self.history = pd.concat((self.history, history))
 #         self.history = self.history.reset_index("Date", drop=True)
 
+
 def main():
     with open("filtered_tickers.txt", "r") as src:
         filtered_tickers = src.read().split("\n")
@@ -519,18 +521,19 @@ def main():
             a = con()
             e = a.ENV_CONSTRUCTOR(ticker=t, mode="dev")
             h = a.run_episode(e)
-            h['agent'] = a.name
-            h['t'] = range(len(h))
+            h["agent"] = a.name
+            h["t"] = range(len(h))
             training_history = pd.concat((training_history, h))
 
-            
+
 if __name__ == "__main__":
     main()
+
 
 class RewardModel(nn.Module):
     def __init__(self):
         nn.Module.__init__(self)
-        self.l1_text  = nn.Linear(EMBED_DIM, HIDDEN_LAYER)
+        self.l1_text = nn.Linear(EMBED_DIM, HIDDEN_LAYER)
         self.l1_state = nn.Linear(STATE_DIM, HIDDEN_LAYER)
         self.l2 = nn.Linear(HIDDEN_LAYER, ACTION_DIM)
 
@@ -541,16 +544,18 @@ class RewardModel(nn.Module):
         assert not torch.isnan(state).any(), f"NaN in input state {state}"
         assert not torch.isnan(text).any(), f"NaN in input embedding {text}"
         h_state = F.relu(self.l1_state(state))
-        h_text  = F.relu(self.l1_text(text))
-#         h = torch.cat([h_state, h_text], dim=1)
+        h_text = F.relu(self.l1_text(text))
+        #         h = torch.cat([h_state, h_text], dim=1)
         h = h_state + h_text
         r = self.l2(h)
-        
+
         return r
 
     def sample_from_softmax_policy(self, batch_state, batch_text):
         batch_logits = self.forward(batch_state, batch_text).detach()
-        assert not torch.isnan(batch_logits).any(), f"NaN in policy logits {batch_logits}"
+        assert not torch.isnan(
+            batch_logits
+        ).any(), f"NaN in policy logits {batch_logits}"
         batch_size = batch_logits.shape[0]
         actions = torch.empty(batch_size, 1)
         for i in range(batch_size):
@@ -561,10 +566,12 @@ class RewardModel(nn.Module):
             actions = actions.to(batch_state.get_device())
         return actions.long()
 
+
 class QWithTextModel(RewardModel):
     def __init__(self):
         RewardModel.__init__(self)
-    
+
+
 class TransitionModel(nn.Module):
     def __init__(self):
         nn.Module.__init__(self)
@@ -572,11 +579,11 @@ class TransitionModel(nn.Module):
         self.sequence_length = 14
         self.x_dim = 5
         self.A = nn.Linear(STATE_DIM, self.x_dim)
-        
+
     def forward(self, state):
         y = self.A(state)
         return y
-    
+
     def next_state(self, state):
         y = self.forward(state)
         sequence = torch.split(state, self.x_dim, dim=1)
@@ -597,12 +604,12 @@ class ModelBasedAgent(BaseAgent):
         self.R = RewardModel()
         self.T = TransitionModel()
         self.Q = QWithTextModel()
-        
+
         if use_cuda:
             self.R.cuda()
             self.T.cuda()
             self.Q.cuda()
-        
+
         self.R_opt = optim.Adam(self.R.parameters())
         self.T_opt = optim.Adam(self.T.parameters())
         self.Q_opt = optim.Adam(self.Q.parameters())
@@ -628,13 +635,11 @@ class ModelBasedAgent(BaseAgent):
             for t in texts:
                 t_tensor = FloatTensor([t])
                 self.memory.push(
-                    (
-                        state_tensor,
-                        t_tensor,
-                        action,  # action is already a tensor
-                    )
+                    (state_tensor, t_tensor, action,)  # action is already a tensor
                 )
-            self.learn(state_tensor, text_tensor, action, next_state, next_text_tensor, reward)
+            self.learn(
+                state_tensor, text_tensor, action, next_state, next_text_tensor, reward
+            )
             state = next_state
             self.steps_done += 1
             if done:
@@ -642,57 +647,66 @@ class ModelBasedAgent(BaseAgent):
         history = environment.close()
         return history
 
-    def learn(self, state_tensor, text_tensor, action, next_state, next_text_tensor, reward):
+    def learn(
+        self, state_tensor, text_tensor, action, next_state, next_text_tensor, reward
+    ):
         # update Transition
         next_state_from_seq = FloatTensor([next_state[-5:]])
-        predicted_next_state= self.T(state_tensor)
+        predicted_next_state = self.T(state_tensor)
         T_loss = F.smooth_l1_loss(predicted_next_state, next_state_from_seq)
         self.T_opt.zero_grad()
         T_loss.backward()
         self.T_opt.step()
-        
+
         # update Reward
-        predicted_reward = self.R(state_tensor, text_tensor).gather(1, action).squeeze(1)
+        predicted_reward = (
+            self.R(state_tensor, text_tensor).gather(1, action).squeeze(1)
+        )
         reward_tensor = FloatTensor([reward])
         R_loss = F.smooth_l1_loss(predicted_reward, reward_tensor)
         self.R_opt.zero_grad()
         R_loss.backward()
         self.R_opt.step()
-        
+
         # update Q-net
         q = self.Q(state_tensor, text_tensor).gather(1, action).squeeze(0)
         next_state_tensor = FloatTensor([next_state])
-        future_q = reward + self.gamma * self.Q(next_state_tensor, next_text_tensor).max(dim=1)[0]
+        future_q = (
+            reward
+            + self.gamma * self.Q(next_state_tensor, next_text_tensor).max(dim=1)[0]
+        )
         Q_loss = F.smooth_l1_loss(q, future_q.detach())
         self.Q_opt.zero_grad()
         Q_loss.backward()
         self.Q_opt.step()
-        
+
         if len(self.memory) <= self.BATCH_SIZE:
             return
-        
+
         # random transition batch is taken from experience replay memory
         transitions = self.memory.sample(self.BATCH_SIZE)
-        batch_state, batch_text, batch_action = zip(
-            *transitions
-        )
+        batch_state, batch_text, batch_action = zip(*transitions)
         batch_state = Variable(torch.cat(batch_state))
         batch_text = Variable(torch.cat(batch_text))
         batch_action = Variable(torch.cat(batch_action))
-        
+
         batch_next_state = self.T.next_state(batch_state).detach()
-        batch_reward = self.R(batch_state, batch_text).detach().gather(1, batch_action).squeeze(1)
+        batch_reward = (
+            self.R(batch_state, batch_text).detach().gather(1, batch_action).squeeze(1)
+        )
         # Bootstrap sample batch_next_text
         n = batch_text.shape[1]
         text_mean = batch_text.mean(dim=0)
-        m = (batch_text - text_mean)
+        m = batch_text - text_mean
         text_cov = m.t().matmul(m).squeeze() / (n - 1)
-        text_cov += torch.eye(n) * 1e-6 # for numerical stability
+        text_cov += torch.eye(n) * 1e-6  # for numerical stability
         text_dist = torch.distributions.MultivariateNormal(text_mean, text_cov)
         batch_next_text = text_dist.sample((self.BATCH_SIZE,))
 
         # current Q values are estimated by NN for all actions
-        current_q_values = self.Q(batch_state, batch_text).gather(1, batch_action).squeeze()
+        current_q_values = (
+            self.Q(batch_state, batch_text).gather(1, batch_action).squeeze()
+        )
         simulated_q_values = self.Q(batch_next_state, batch_next_text).max(dim=1)[0]
         future_q = batch_reward + self.gamma * simulated_q_values
         simulated_q_loss = F.smooth_l1_loss(current_q_values, future_q.detach())
@@ -718,7 +732,7 @@ class ModelBasedAgent(BaseAgent):
 #                 self.history = pd.concat((self.history, history))
 #         self.history = self.history.reset_index("Date", drop=True)
 
-        
+
 class ModelBased_NoText_Agent(BaseAgent):
     LR = 0.001  # NN optimizer learning rate
     BATCH_SIZE = 16  # Q-learning batch size
@@ -731,12 +745,12 @@ class ModelBased_NoText_Agent(BaseAgent):
         self.R = QNetwork()
         self.T = TransitionModel()
         self.Q = QNetwork()
-        
+
         if use_cuda:
             self.R.cuda()
             self.T.cuda()
             self.Q.cuda()
-        
+
         self.R_opt = optim.Adam(self.R.parameters())
         self.T_opt = optim.Adam(self.T.parameters())
         self.Q_opt = optim.Adam(self.Q.parameters())
@@ -756,12 +770,7 @@ class ModelBased_NoText_Agent(BaseAgent):
             position = self.Q.sample_from_softmax_policy(state_tensor)
             action = position + 1
             next_state, reward, done, _ = environment.step(position.item())
-            self.memory.push(
-                (
-                    state_tensor,
-                    action,
-                )
-            )
+            self.memory.push((state_tensor, action,))
             self.learn(state_tensor, action, next_state, reward)
             state = next_state
             self.steps_done += 1
@@ -773,12 +782,12 @@ class ModelBased_NoText_Agent(BaseAgent):
     def learn(self, state_tensor, action, next_state, reward):
         # update Transition
         next_state_from_seq = FloatTensor([next_state[-5:]])
-        predicted_next_state= self.T(state_tensor)
+        predicted_next_state = self.T(state_tensor)
         T_loss = F.smooth_l1_loss(predicted_next_state, next_state_from_seq)
         self.T_opt.zero_grad()
         T_loss.backward()
         self.T_opt.step()
-        
+
         # update Reward
         predicted_reward = self.R(state_tensor).gather(1, action).squeeze(1)
         reward_tensor = FloatTensor([reward])
@@ -786,7 +795,7 @@ class ModelBased_NoText_Agent(BaseAgent):
         self.R_opt.zero_grad()
         R_loss.backward()
         self.R_opt.step()
-        
+
         # update Q-net
         q = self.Q(state_tensor).gather(1, action).squeeze(0)
         next_state_tensor = FloatTensor([next_state])
@@ -795,18 +804,16 @@ class ModelBased_NoText_Agent(BaseAgent):
         self.Q_opt.zero_grad()
         Q_loss.backward()
         self.Q_opt.step()
-        
+
         if len(self.memory) <= self.BATCH_SIZE:
             return
-        
+
         # random transition batch is taken from experience replay memory
         transitions = self.memory.sample(self.BATCH_SIZE)
-        batch_state, batch_action = zip(
-            *transitions
-        )
+        batch_state, batch_action = zip(*transitions)
         batch_state = Variable(torch.cat(batch_state))
         batch_action = Variable(torch.cat(batch_action))
-        
+
         batch_next_state = self.T.next_state(batch_state).detach()
         batch_reward = self.R(batch_state).detach().gather(1, batch_action).squeeze(1)
 
@@ -827,13 +834,13 @@ class ModelBased_NoText_Agent(BaseAgent):
 #         """
 #         num_tickers = min(num_tickers, len(self.filtered_tickers))
 #         self.history = pd.DataFrame()
-        
+
 #         for j in range(num_tickers):
 #             ticker = self.filtered_tickers[j % num_tickers]
 #             env = TradingEnv(ticker=ticker, mode=env_mode)
-#             for i in tqdm(range(episode_per_ticker)):    
+#             for i in tqdm(range(episode_per_ticker)):
 #                 history = self.run_episode(env)
 #                 history["ticker"] = ticker
 #                 history["episode"] = i + 1
 #                 self.history = pd.concat((self.history, history))
-#         self.history = self.history.reset_index("Date", drop=True)       
+#         self.history = self.history.reset_index("Date", drop=True)

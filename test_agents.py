@@ -58,7 +58,6 @@ class TestDQN:
         with pytest.raises(AssertionError):
             net(x1)
 
-    
     def test_dqn_dev(self):
         a = DQN()
         validate_net(a.model)
@@ -66,15 +65,15 @@ class TestDQN:
         basic_episode_test(a, mode="dev")
         validate_net(a.model)
         validate_net(a.target)
-        
+
     def test_dqn_test(self):
         a = DQN()
         validate_net(a.model)
         validate_net(a.target)
         basic_episode_test(a, mode="test")
         validate_net(a.model)
-        validate_net(a.target)        
-    
+        validate_net(a.target)
+
     def test_dqn_train(self):
         a = DQN()
         validate_net(a.model)
@@ -82,8 +81,6 @@ class TestDQN:
         basic_episode_test(a, mode="train")
         validate_net(a.model)
         validate_net(a.target)
-        
-    
 
 
 @pytest.mark.incremental
@@ -98,38 +95,39 @@ class TestA2C:
         x1[0, 0] = float("nan")
         with pytest.raises(AssertionError):
             net(x1)
-    
+
     def test_a2c_dev(self):
         a = A2C()
         validate_net(a.model)
         validate_net(a.policy)
-        basic_episode_test(a, mode='dev')
+        basic_episode_test(a, mode="dev")
         validate_net(a.model)
         validate_net(a.policy)
-        
+
     def test_a2c_test(self):
         a = A2C()
         validate_net(a.model)
         validate_net(a.policy)
-        basic_episode_test(a, mode='test')
+        basic_episode_test(a, mode="test")
         validate_net(a.model)
         validate_net(a.policy)
-        
+
     def test_a2c_train(self):
         a = A2C()
         validate_net(a.model)
         validate_net(a.policy)
-        basic_episode_test(a, mode='train')
+        basic_episode_test(a, mode="train")
         validate_net(a.model)
-        validate_net(a.policy)        
-        
+        validate_net(a.policy)
+
+
 @pytest.mark.incremental
 class TestModelBased:
     def test_reward_model(self):
         m = RewardModel()
         state, text = TradingWithRedditEnv().reset()
         state_tensor = FloatTensor([state])
-        text_tensor  = FloatTensor(text)
+        text_tensor = FloatTensor(text)
         text_tensor = text_tensor.mean(dim=0, keepdim=True)
         m(state_tensor, text_tensor)
         validate_net(m)
@@ -138,7 +136,7 @@ class TestModelBased:
         m = QWithTextModel()
         state, text = TradingWithRedditEnv().reset()
         state_tensor = FloatTensor([state])
-        text_tensor  = FloatTensor(text)
+        text_tensor = FloatTensor(text)
         text_tensor = text_tensor.mean(dim=0, keepdim=True)
         m(state_tensor, text_tensor)
         validate_net(m)
