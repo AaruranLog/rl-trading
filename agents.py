@@ -127,8 +127,8 @@ class BaseAgent:
             reaches a terminal state (ie the training window is complete).
             Must return environment.close()
         """
-        raise NotImplementedError()
-
+        pass
+        
     def plot_cumulative_discounted_rewards(self):
         raise NotImplementedError("Needs to be refactored.")
         rl_data = self.history
@@ -156,7 +156,7 @@ class BaseAgent:
         #         assert position in [-1,0,1]
         return position.item()
 
-    def train(self, num_tickers=20, episodes_per_ticker=5, **kwargs):
+    def train(self, num_tickers=4, episodes_per_ticker=5, **kwargs):
         """
             Trains the agent for episode_per_ticker, on each of num_tickers, looping over the approved
             list of tickers. This is a convenience function.
@@ -169,6 +169,7 @@ class BaseAgent:
                 history = self.run_episode(env)
                 history["ticker"] = ticker
                 history["episode"] = j + 1
+                history["t"] = range(len(history))
                 self.history = pd.concat((self.history, history))
         self.history = self.history.reset_index("Date", drop=True)
 
@@ -489,23 +490,23 @@ class DDPG(BaseAgent):
         self.policy_opt.step()
         
         
-    def train(self, env_mode="train", num_tickers=20, num_episodes=5, **kwargs):
-        """
-            Trains the agent for num_episodes episodes, looping over the approved
-            list of tickers (filtered by num_tickers). This is a convenience function.
-        """
-        num_tickers = min(num_tickers, len(self.filtered_tickers))
-        if num_tickers == np.Inf:
-            num_tickers = len(self.filtered_tickers)
-        self.history = pd.DataFrame()
-        for i in tqdm(range(num_episodes)):
-            ticker = self.filtered_tickers[i % num_tickers]
-            env = ContinuousTradingEnv(ticker=ticker, **kwargs)
-            history = self.run_episode(env)
-            history["ticker"] = ticker
-            history["episode"] = i + 1
-            self.history = pd.concat((self.history, history))
-        self.history = self.history.reset_index("Date", drop=True)
+#     def train(self, num_tickers=20, num_episodes=5, **kwargs):
+#         """
+#             Trains the agent for num_episodes episodes, looping over the approved
+#             list of tickers (filtered by num_tickers). This is a convenience function.
+#         """
+#         num_tickers = min(num_tickers, len(self.filtered_tickers))
+#         if num_tickers == np.Inf:
+#             num_tickers = len(self.filtered_tickers)
+#         self.history = pd.DataFrame()
+#         for i in tqdm(range(num_episodes)):
+#             ticker = self.filtered_tickers[i % num_tickers]
+#             env = ContinuousTradingEnv(ticker=ticker, **kwargs)
+#             history = self.run_episode(env)
+#             history["ticker"] = ticker
+#             history["episode"] = i + 1
+#             self.history = pd.concat((self.history, history))
+#         self.history = self.history.reset_index("Date", drop=True)
 
 def main():
     with open("filtered_tickers.txt", "r") as src:
@@ -522,48 +523,317 @@ def main():
             h['t'] = range(len(h))
             training_history = pd.concat((training_history, h))
 
-#         a.plot_cumulative_discounted_rewards()
-        
+            
 if __name__ == "__main__":
     main()
 
-# a2c_agent.plot_returns("MMM")
+class RewardModel(nn.Module):
+    def __init__(self):
+        nn.Module.__init__(self)
+        self.l1_text  = nn.Linear(EMBED_DIM, HIDDEN_LAYER)
+        self.l1_state = nn.Linear(STATE_DIM, HIDDEN_LAYER)
+        self.l2 = nn.Linear(HIDDEN_LAYER, ACTION_DIM)
 
-# # In[ ]:
+    def forward(self, state, text, logits=True):
+        """
+            returns the expected future reward for taking each action
+        """
+        assert not torch.isnan(state).any(), f"NaN in input state {state}"
+        assert not torch.isnan(text).any(), f"NaN in input embedding {text}"
+        h_state = F.relu(self.l1_state(state))
+        h_text  = F.relu(self.l1_text(text))
+#         h = torch.cat([h_state, h_text], dim=1)
+        h = h_state + h_text
+        r = self.l2(h)
+        
+        return r
 
+    def sample_from_softmax_policy(self, batch_state, batch_text):
+        batch_logits = self.forward(batch_state, batch_text).detach()
+        assert not torch.isnan(batch_logits).any(), f"NaN in policy logits {batch_logits}"
+        batch_size = batch_logits.shape[0]
+        actions = torch.empty(batch_size, 1)
+        for i in range(batch_size):
+            logits = batch_logits[i, :]
+            dist = torch.distributions.Categorical(logits=logits)
+            actions[i, 0] = dist.sample().view(1, 1)
+        if use_cuda:
+            actions = actions.to(batch_state.get_device())
+        return actions.long()
 
-# q = sns.FacetGrid(
-#     a2c_agent.history[a2c_agent.history.episode % 10 == 0],
-#     col="episode",
-#     col_wrap=3,
-#     aspect=1.61,
-# )
-# q.map(sns.lineplot, "date", "returns")
+class QWithTextModel(RewardModel):
+    def __init__(self):
+        RewardModel.__init__(self)
+    
+class TransitionModel(nn.Module):
+    def __init__(self):
+        nn.Module.__init__(self)
 
-
-# # In[ ]:
-
-
-# long_agent.plot_cumulative_discounted_rewards()
-
-
-# # In[ ]:
-
-
-# a2c_agent.plot_returns("MMM")
-
-
-# # In[34]:
-
-
-# h = a2c_agent.history
-# q = sns.FacetGrid(h[h.episode % 20 == 0], col="episode", row="ticker")
-# q.map(sns.lineplot, "date", "returns")
-
-
-# # In[ ]:
+        self.sequence_length = 14
+        self.x_dim = 5
+        self.A = nn.Linear(STATE_DIM, self.x_dim)
+        
+    def forward(self, state):
+        y = self.A(state)
+        return y
+    
+    def next_state(self, state):
+        y = self.forward(state)
+        sequence = torch.split(state, self.x_dim, dim=1)
+        new_state = torch.cat((*sequence[1:], y), dim=1)
+        return new_state
 
 
 class ModelBasedAgent(BaseAgent):
+    LR = 0.001  # NN optimizer learning rate
+    BATCH_SIZE = 16  # Q-learning batch size
+    TARGET_UPDATE = 100  # frequency of target update
+    BUFFER_SIZE = 256  # capacity of the replay buffer
+
     def __init__(self):
         super().__init__()
+        self.name = "Model-based"
+        self.ENV_CONSTRUCTOR = TradingWithRedditEnv
+        self.R = RewardModel()
+        self.T = TransitionModel()
+        self.Q = QWithTextModel()
+        
+        if use_cuda:
+            self.R.cuda()
+            self.T.cuda()
+            self.Q.cuda()
+        
+        self.R_opt = optim.Adam(self.R.parameters())
+        self.T_opt = optim.Adam(self.T.parameters())
+        self.Q_opt = optim.Adam(self.Q.parameters())
+        self.memory = ReplayMemory(BUFFER_SIZE)
+        self.BATCH_SIZE = 2
+
+    def run_episode(self, environment):
+        """
+            Takes an env, and trains the agent until the environment
+            reaches a terminal state (ie the training window is complete).
+            Must return environment.close()
+        """
+        state, texts = environment.reset()
+        self.steps_done = 0
+        action = None
+        while True:
+            state_tensor = FloatTensor([state])
+            text_tensor = FloatTensor(texts).mean(dim=0, keepdim=True)
+            action = self.Q.sample_from_softmax_policy(state_tensor, text_tensor)
+            position = self.convert_action(action)
+            (next_state, next_texts), reward, done, _ = environment.step(position)
+            next_text_tensor = FloatTensor(next_texts).mean(dim=0, keepdim=True)
+            for t in texts:
+                t_tensor = FloatTensor([t])
+                self.memory.push(
+                    (
+                        state_tensor,
+                        t_tensor,
+                        action,  # action is already a tensor
+                    )
+                )
+            self.learn(state_tensor, text_tensor, action, next_state, next_text_tensor, reward)
+            state = next_state
+            self.steps_done += 1
+            if done:
+                break
+        history = environment.close()
+        return history
+
+    def learn(self, state_tensor, text_tensor, action, next_state, next_text_tensor, reward):
+        # update Transition
+        next_state_from_seq = FloatTensor([next_state[-5:]])
+        predicted_next_state= self.T(state_tensor)
+        T_loss = F.smooth_l1_loss(predicted_next_state, next_state_from_seq)
+        self.T_opt.zero_grad()
+        T_loss.backward()
+        self.T_opt.step()
+        
+        # update Reward
+        predicted_reward = self.R(state_tensor, text_tensor).gather(1, action).squeeze(1)
+        reward_tensor = FloatTensor([reward])
+        R_loss = F.smooth_l1_loss(predicted_reward, reward_tensor)
+        self.R_opt.zero_grad()
+        R_loss.backward()
+        self.R_opt.step()
+        
+        # update Q-net
+        q = self.Q(state_tensor, text_tensor).gather(1, action).squeeze(0)
+        next_state_tensor = FloatTensor([next_state])
+        future_q = reward + self.gamma * self.Q(next_state_tensor, next_text_tensor).max(dim=1)[0]
+        Q_loss = F.smooth_l1_loss(q, future_q.detach())
+        self.Q_opt.zero_grad()
+        Q_loss.backward()
+        self.Q_opt.step()
+        
+        if len(self.memory) <= self.BATCH_SIZE:
+            return
+        
+        # random transition batch is taken from experience replay memory
+        transitions = self.memory.sample(self.BATCH_SIZE)
+        batch_state, batch_text, batch_action = zip(
+            *transitions
+        )
+        batch_state = Variable(torch.cat(batch_state))
+        batch_text = Variable(torch.cat(batch_text))
+        batch_action = Variable(torch.cat(batch_action))
+        
+        batch_next_state = self.T.next_state(batch_state).detach()
+        batch_reward = self.R(batch_state, batch_text).detach().gather(1, batch_action).squeeze(1)
+        # Bootstrap sample batch_next_text
+        n = batch_text.shape[1]
+        text_mean = batch_text.mean(dim=0)
+        m = (batch_text - text_mean)
+        text_cov = m.t().matmul(m).squeeze() / (n - 1)
+        text_cov += torch.eye(n) * 1e-6 # for numerical stability
+        text_dist = torch.distributions.MultivariateNormal(text_mean, text_cov)
+        batch_next_text = text_dist.sample((self.BATCH_SIZE,))
+
+        # current Q values are estimated by NN for all actions
+        current_q_values = self.Q(batch_state, batch_text).gather(1, batch_action).squeeze()
+        simulated_q_values = self.Q(batch_next_state, batch_next_text).max(dim=1)[0]
+        future_q = batch_reward + self.gamma * simulated_q_values
+        simulated_q_loss = F.smooth_l1_loss(current_q_values, future_q.detach())
+        self.Q_opt.zero_grad()
+        simulated_q_loss.backward()
+        self.Q_opt.step()
+
+
+#     def train(self, num_tickers=20, episode_per_ticker=5, **kwargs):
+#         """
+#             Trains the agent for num_episodes episodes, looping over the approved
+#             list of tickers (filtered by num_tickers). This is a convenience function.
+#         """
+#         num_tickers = min(num_tickers, len(self.filtered_tickers))
+#         self.history = pd.DataFrame()
+#         for i in tqdm(range(episode_per_ticker)):
+#             for j in range(num_tickers):
+#                 ticker = self.filtered_tickers[j % num_tickers]
+#                 env = TradingWithRedditEnv(ticker=ticker, **kwargs)
+#                 history = self.run_episode(env)
+#                 history["ticker"] = ticker
+#                 history["episode"] = i + 1
+#                 self.history = pd.concat((self.history, history))
+#         self.history = self.history.reset_index("Date", drop=True)
+
+        
+class ModelBased_NoText_Agent(BaseAgent):
+    LR = 0.001  # NN optimizer learning rate
+    BATCH_SIZE = 16  # Q-learning batch size
+    TARGET_UPDATE = 100  # frequency of target update
+    BUFFER_SIZE = 256  # capacity of the replay buffer
+
+    def __init__(self):
+        super().__init__()
+        self.name = "Model-based"
+        self.R = QNetwork()
+        self.T = TransitionModel()
+        self.Q = QNetwork()
+        
+        if use_cuda:
+            self.R.cuda()
+            self.T.cuda()
+            self.Q.cuda()
+        
+        self.R_opt = optim.Adam(self.R.parameters())
+        self.T_opt = optim.Adam(self.T.parameters())
+        self.Q_opt = optim.Adam(self.Q.parameters())
+        self.memory = ReplayMemory(BUFFER_SIZE)
+        self.BATCH_SIZE = 2
+
+    def run_episode(self, environment):
+        """
+            Takes an env, and trains the agent until the environment
+            reaches a terminal state (ie the training window is complete).
+            Must return environment.close()
+        """
+        state = environment.reset()
+        self.steps_done = 0
+        while True:
+            state_tensor = FloatTensor([state])
+            position = self.Q.sample_from_softmax_policy(state_tensor)
+            action = position + 1
+            next_state, reward, done, _ = environment.step(position.item())
+            self.memory.push(
+                (
+                    state_tensor,
+                    action,
+                )
+            )
+            self.learn(state_tensor, action, next_state, reward)
+            state = next_state
+            self.steps_done += 1
+            if done:
+                break
+        history = environment.close()
+        return history
+
+    def learn(self, state_tensor, action, next_state, reward):
+        # update Transition
+        next_state_from_seq = FloatTensor([next_state[-5:]])
+        predicted_next_state= self.T(state_tensor)
+        T_loss = F.smooth_l1_loss(predicted_next_state, next_state_from_seq)
+        self.T_opt.zero_grad()
+        T_loss.backward()
+        self.T_opt.step()
+        
+        # update Reward
+        predicted_reward = self.R(state_tensor).gather(1, action).squeeze(1)
+        reward_tensor = FloatTensor([reward])
+        R_loss = F.smooth_l1_loss(predicted_reward, reward_tensor)
+        self.R_opt.zero_grad()
+        R_loss.backward()
+        self.R_opt.step()
+        
+        # update Q-net
+        q = self.Q(state_tensor).gather(1, action).squeeze(0)
+        next_state_tensor = FloatTensor([next_state])
+        future_q = reward + self.gamma * self.Q(next_state_tensor).max(dim=1)[0]
+        Q_loss = F.smooth_l1_loss(q, future_q.detach())
+        self.Q_opt.zero_grad()
+        Q_loss.backward()
+        self.Q_opt.step()
+        
+        if len(self.memory) <= self.BATCH_SIZE:
+            return
+        
+        # random transition batch is taken from experience replay memory
+        transitions = self.memory.sample(self.BATCH_SIZE)
+        batch_state, batch_action = zip(
+            *transitions
+        )
+        batch_state = Variable(torch.cat(batch_state))
+        batch_action = Variable(torch.cat(batch_action))
+        
+        batch_next_state = self.T.next_state(batch_state).detach()
+        batch_reward = self.R(batch_state).detach().gather(1, batch_action).squeeze(1)
+
+        # current Q values are estimated by NN for all actions
+        current_q_values = self.Q(batch_state).gather(1, batch_action).squeeze()
+        simulated_q_values = self.Q(batch_next_state).max(dim=1)[0]
+        future_q = batch_reward + self.gamma * simulated_q_values
+        simulated_q_loss = F.smooth_l1_loss(current_q_values, future_q.detach())
+        self.Q_opt.zero_grad()
+        simulated_q_loss.backward()
+        self.Q_opt.step()
+
+
+#     def train(self, env_mode="train", num_tickers=5, episode_per_ticker=3):
+#         """
+#             Trains the agent for num_episodes episodes, looping over the approved
+#             list of tickers (filtered by num_tickers). This is a convenience function.
+#         """
+#         num_tickers = min(num_tickers, len(self.filtered_tickers))
+#         self.history = pd.DataFrame()
+        
+#         for j in range(num_tickers):
+#             ticker = self.filtered_tickers[j % num_tickers]
+#             env = TradingEnv(ticker=ticker, mode=env_mode)
+#             for i in tqdm(range(episode_per_ticker)):    
+#                 history = self.run_episode(env)
+#                 history["ticker"] = ticker
+#                 history["episode"] = i + 1
+#                 self.history = pd.concat((self.history, history))
+#         self.history = self.history.reset_index("Date", drop=True)       

@@ -57,8 +57,7 @@ def basic_episode_test(agent):
 
 
 def test_base_basic():
-    with pytest.raises(NotImplementedError):
-        basic_episode_test(BaseAgent())
+    basic_episode_test(BaseAgent())
 
 
 def three_tickers_test(agent):
@@ -88,11 +87,11 @@ class TestDQN:
 
     def test_dqn_long(self):
         dqn_agent = DQN()
-        dqn_agent.train(env_mode="train", num_tickers=10, episodes_per_ticker=10)
+        dqn_agent.train(num_tickers=10, episodes_per_ticker=10, mode="train")
 
     def test_dqn_long(self):
         dqn_agent = DQN()
-        dqn_agent.train(env_mode="train", num_tickers=10, episodes_per_ticker=10)
+        dqn_agent.train(num_tickers=10, episodes_per_ticker=10, mode="train")
 
 
 @pytest.mark.incremental
@@ -108,9 +107,40 @@ class TestA2C:
 
     def test_a2c_large(self):
         a2c_agent = A2C()
-        a2c_agent.train(env_mode="train", num_tickers=10, episodes_per_ticker=10)
+        a2c_agent.train(num_tickers=10, episodes_per_ticker=10, mode="train")
         validate_net(a2c_agent.model)
         validate_net(a2c_agent.policy)
 
     def test_a2c_all(self):
         pass
+
+def test_reward_model():
+    m = RewardModel()
+    state_tensor = FloatTensor([state])
+    text_tensor  = FloatTensor(text)
+    text_tensor = text_tensor.mean(dim=0, keepdim=True)
+    m(state_tensor, text_tensor)
+    validate_net(m)
+    
+def test_q_text_model():
+    m = QWithTextModel()
+    state_tensor = FloatTensor([state])
+    text_tensor  = FloatTensor(text)
+    text_tensor = text_tensor.mean(dim=0, keepdim=True)
+    m(state_tensor, text_tensor)
+    validate_net(m)
+    
+def test_transition_model():
+    state_tensor = FloatTensor([TradingWithRedditEnv().reset()[0]])
+    T = TransitionModel()
+    T(state_tensor), T.next_state(state_tensor)
+    
+def test_model_based():
+    model_agent = ModelBasedAgent()
+    e = TradingWithRedditEnv()
+    model_agent.run_episode(e)
+    
+def test_model_without_text():
+    model_without_text = ModelBased_NoText_Agent()
+    e_notext = TradingEnv()
+    model_without_text.run_episode(e_notext)
