@@ -62,13 +62,13 @@ def test_base_basic():
 
 
 def three_tickers_test(agent):
-    agent.train(num_tickers=3, num_episodes=3)
+    agent.train(num_tickers=3, episodes_per_ticker=3)
 
 
 def test_longonly_basic():
     basic_episode_test(LongOnlyAgent())
     long_agent = LongOnlyAgent()
-    long_agent.train(num_tickers=1, num_episodes=100)
+    long_agent.train(num_tickers=1)
 
 
 def test_longonly_3tickers():
@@ -88,11 +88,11 @@ class TestDQN:
 
     def test_dqn_long(self):
         dqn_agent = DQN()
-        dqn_agent.train(env_mode="train", num_tickers=10, num_episodes=10)
+        dqn_agent.train(env_mode="train", num_tickers=10, episodes_per_ticker=10)
 
     def test_dqn_long(self):
         dqn_agent = DQN()
-        dqn_agent.train(env_mode="train", num_tickers=10, num_episodes=10)
+        dqn_agent.train(env_mode="train", num_tickers=10, episodes_per_ticker=10)
 
 
 @pytest.mark.incremental
@@ -108,7 +108,7 @@ class TestA2C:
 
     def test_a2c_large(self):
         a2c_agent = A2C()
-        a2c_agent.train(env_mode="train", num_tickers=10, num_episodes=10)
+        a2c_agent.train(env_mode="train", num_tickers=10, episodes_per_ticker=10)
         validate_net(a2c_agent.model)
         validate_net(a2c_agent.policy)
 

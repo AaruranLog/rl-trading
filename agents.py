@@ -130,6 +130,7 @@ class BaseAgent:
         raise NotImplementedError()
 
     def plot_cumulative_discounted_rewards(self):
+        raise NotImplementedError("Needs to be refactored.")
         rl_data = self.history
         rl_data["discount_factor"] = np.power(self.gamma, rl_data.episode - 1)
         rl_data["discounted_future_reward"] = (
@@ -155,23 +156,22 @@ class BaseAgent:
         #         assert position in [-1,0,1]
         return position.item()
 
-    def train(self, env_mode="train", num_tickers=20, episodes_per_ticker=5):
+    def train(self, num_tickers=20, episodes_per_ticker=5, **kwargs):
         """
-            Trains the agent for num_episodes episodes, looping over the approved
-            list of tickers (filtered by num_tickers). This is a convenience function.
+            Trains the agent for episode_per_ticker, on each of num_tickers, looping over the approved
+            list of tickers. This is a convenience function.
         """
         num_tickers = min(num_tickers, len(self.filtered_tickers))
-        for i in tqdm(range(num_episodes)):
+        for i in range(num_tickers):
             ticker = self.filtered_tickers[i % num_tickers]
-            env = TradingEnv(ticker=ticker, mode=env_mode)
-            history = self.run_episode(env)
-            history["ticker"] = ticker
-            history["episode"] = i + 1
-            self.history = pd.concat((self.history, history))
+            env = self.ENV_CONSTRUCTOR(ticker=ticker, **kwargs)
+            for j in tqdm(range(episodes_per_ticker)):
+                history = self.run_episode(env)
+                history["ticker"] = ticker
+                history["episode"] = j + 1
+                self.history = pd.concat((self.history, history))
         self.history = self.history.reset_index("Date", drop=True)
 
-    #         self.plot_returns(num_tickers)
-    #         self.plot_cumulative_discounted_rewards()
 
     def plot_returns(self, ticker):
         h = self.history
@@ -289,16 +289,29 @@ class LongOnlyAgent(BaseAgent):
 
     def run_episode(self, environment):
         state = environment.reset()
-        steps = 0
         position = 1
-        while True:
+        done = False
+        while not done:
             _, r, done, __ = environment.step(position)
             self.steps_done += 1
-            steps += 1
-            if done:
-                break
-        self.history.append(environment.rewards_list)
+
         return environment.close()
+    
+    def train(self, num_tickers=20, episodes_per_ticker=5, **kwargs):
+        """
+            Trains the agent for episode_per_ticker, on each of num_tickers, looping over the approved
+            list of tickers. This is a convenience function.
+        """
+        num_tickers = min(num_tickers, len(self.filtered_tickers))
+        for i in range(num_tickers):
+            ticker = self.filtered_tickers[i % num_tickers]
+            env = self.ENV_CONSTRUCTOR(ticker=ticker, **kwargs)
+            for j in tqdm(range(episodes_per_ticker)):
+                history = self.run_episode(env)
+                history["ticker"] = ticker
+                history["episode"] = j + 1
+                self.history = pd.concat((self.history, history))
+        self.history = self.history.reset_index("Date", drop=True)
 
 
 class PolicyNetwork(nn.Module):
