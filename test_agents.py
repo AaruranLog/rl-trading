@@ -107,7 +107,7 @@ class TestA2C:
 
     def test_a2c_large(self):
         a2c_agent = A2C()
-        a2c_agent.train(num_tickers=10, episodes_per_ticker=10, mode="train")
+        a2c_agent.train(num_tickers=10, episodes_per_ticker=1, mode="train")
         validate_net(a2c_agent.model)
         validate_net(a2c_agent.policy)
 
@@ -116,6 +116,7 @@ class TestA2C:
 
 def test_reward_model():
     m = RewardModel()
+    state, text = TradingWithRedditEnv()
     state_tensor = FloatTensor([state])
     text_tensor  = FloatTensor(text)
     text_tensor = text_tensor.mean(dim=0, keepdim=True)
@@ -124,6 +125,7 @@ def test_reward_model():
     
 def test_q_text_model():
     m = QWithTextModel()
+    state, text = TradingWithRedditEnv()
     state_tensor = FloatTensor([state])
     text_tensor  = FloatTensor(text)
     text_tensor = text_tensor.mean(dim=0, keepdim=True)
@@ -131,7 +133,8 @@ def test_q_text_model():
     validate_net(m)
     
 def test_transition_model():
-    state_tensor = FloatTensor([TradingWithRedditEnv().reset()[0]])
+    state, text = TradingWithRedditEnv()
+    state_tensor = FloatTensor([state])
     T = TransitionModel()
     T(state_tensor), T.next_state(state_tensor)
     

@@ -606,7 +606,7 @@ class ModelBasedAgent(BaseAgent):
         self.R_opt = optim.Adam(self.R.parameters())
         self.T_opt = optim.Adam(self.T.parameters())
         self.Q_opt = optim.Adam(self.Q.parameters())
-        self.memory = ReplayMemory(BUFFER_SIZE)
+        self.memory = ReplayMemory(self.BUFFER_SIZE)
         self.BATCH_SIZE = 2
 
     def run_episode(self, environment):
@@ -740,7 +740,7 @@ class ModelBased_NoText_Agent(BaseAgent):
         self.R_opt = optim.Adam(self.R.parameters())
         self.T_opt = optim.Adam(self.T.parameters())
         self.Q_opt = optim.Adam(self.Q.parameters())
-        self.memory = ReplayMemory(BUFFER_SIZE)
+        self.memory = ReplayMemory(self.BUFFER_SIZE)
         self.BATCH_SIZE = 2
 
     def run_episode(self, environment):
