@@ -295,24 +295,7 @@ class LongOnlyAgent(BaseAgent):
         while not done:
             _, r, done, __ = environment.step(position)
             self.steps_done += 1
-
         return environment.close()
-
-    def train(self, num_tickers=20, episodes_per_ticker=5, **kwargs):
-        """
-            Trains the agent for episode_per_ticker, on each of num_tickers, looping over the approved
-            list of tickers. This is a convenience function.
-        """
-        num_tickers = min(num_tickers, len(self.filtered_tickers))
-        for i in range(num_tickers):
-            ticker = self.filtered_tickers[i % num_tickers]
-            env = self.ENV_CONSTRUCTOR(ticker=ticker, **kwargs)
-            for j in tqdm(range(episodes_per_ticker)):
-                history = self.run_episode(env)
-                history["ticker"] = ticker
-                history["episode"] = j + 1
-                self.history = pd.concat((self.history, history))
-        self.history = self.history.reset_index("Date", drop=True)
 
 
 class PolicyNetwork(nn.Module):
@@ -741,7 +724,7 @@ class ModelBased_NoText_Agent(BaseAgent):
 
     def __init__(self):
         super().__init__()
-        self.name = "Model-based"
+        self.name = "Model-based without Text"
         self.R = QNetwork()
         self.T = TransitionModel()
         self.Q = QNetwork()
