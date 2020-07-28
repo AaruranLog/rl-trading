@@ -1,6 +1,7 @@
 import pytest
 from system import *
 from pandas_datareader._utils import RemoteDataError
+from pandas.testing import assert_frame_equal
 import numpy as np
 import math
 
@@ -43,7 +44,8 @@ class Test_TradingEnv:
             assert len(state) == len(next_state)
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
-        assert all(h == h.fillna(np.inf)), "Invalid history"
+        assert_frame_equal(h, h.fillna(np.inf))
+#         assert all(h == h.fillna(np.inf)), "Invalid history"
 
     def test_CELG_download_fails(self):
         with pytest.raises(RemoteDataError):
@@ -113,7 +115,8 @@ class Test_CntsEnv(Test_TradingEnv):
             assert len(state) == len(next_state)
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
-        assert all(h == h.fillna(np.inf)), "Invalid history"
+        assert_frame_equal(h, h.fillna(np.inf))
+#         assert all(h == h.fillna(np.inf)), "Invalid history"
 
     def test_cnts_loop(self):
         self.basic_loop("AAPL")
@@ -142,7 +145,8 @@ class Test_RedditEnv(Test_TradingEnv):
             ), f"Expected list, but got {type(vectors)}"
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
-        assert all(h == h.fillna(np.inf)), "Invalid history"
+        assert_frame_equal(h, h.fillna(np.inf))
+#         assert all(h == h.fillna(np.inf)), "Invalid history"
 
     def test_reddit_loop(self):
         self.basic_loop("aapl")
@@ -156,8 +160,7 @@ class TestValidData:
         start_index = e.df_initial_index - e.WINDOW_SIZE
         final_index = e.df_final_index
         trading_data = e.data[start_index : final_index + 1]
-        data_has_no_NaNs = all(trading_data == trading_data.fillna(np.inf))
-        assert data_has_no_NaNs, "NaNs found"
+        assert_frame_equal(trading_data, trading_data.fillna(np.inf))
 
         assert (
             trading_data["std"].min() > 0
@@ -166,28 +169,20 @@ class TestValidData:
     def test_mmm_download(self):
         self.validate_all_data("MMM")
 
-    #         basic_loop("MMM")
-
     def test_apple_download(self):
         self.validate_all_data("AAPL")
-
-    #         basic_loop("AAPL")
 
     def test_abbv_download(self):
         self.validate_all_data("ABBV")
 
-    #         basic_loop("ABBV")
-
     def test_amzn_download(self):
         self.validate_all_data("AMZN")
 
-    #         basic_loop("AMZN")
 
     def test_br_download(self):
         if "BR" in filtered_tickers:
             self.validate_all_data("BR")
 
-    #             basic_loop("BR")
 
     def test_all_tickers_download_and_valid(self):
         errors = {}

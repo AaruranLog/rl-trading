@@ -37,7 +37,9 @@ class TradingEnv(gym.Env):
         self.returns_list = []
         self.rewards_list = []
         self.actions_list = []
-        self.values = [self.INITIAL_BALANCE]
+        
+        self.cash = [self.INITIAL_BALANCE]
+        self.investment_value = [0]
         self.cumulative_costs = [0]
         self._compute_simple_states()
 
@@ -47,7 +49,7 @@ class TradingEnv(gym.Env):
         start, end = self.get_time_endpoints(self.mode)
         self.start = start
         self.end = end
-        # We need prepadding for the momentum q, and the rolling calcuations
+        # We need prepadding for MACD, and the rolling calcuations
         prepadding = pd.Timedelta(
             days=self.short_time + self.long_time + self.WINDOW_SIZE + 7
         )
@@ -62,6 +64,7 @@ class TradingEnv(gym.Env):
             end=end + postpadding,
             session=self.session,
         )["Close"]
+        self.prices_pct_change = self.prices.pct_change()
 
         # We must rescale the data dynamically for numerical stability.
         min_prices = self.prices.expanding().min()
@@ -115,11 +118,11 @@ class TradingEnv(gym.Env):
             Start must be in Monday - Friday (??)
         """
         if mode == "train":
-            return pd.Timestamp("2014-01-06"), pd.Timestamp("2017-12-28")
+            return pd.Timestamp("2014-01-06"), pd.Timestamp("2017-12-29")
         elif mode == "dev":
-            return pd.Timestamp("2014-01-06"), pd.Timestamp("2015-01-01")
+            return pd.Timestamp("2014-01-06"), pd.Timestamp("2014-12-31")
         elif mode == "test":
-            return pd.Timestamp("2018-01-01"), pd.Timestamp("2018-12-31")
+            return pd.Timestamp("2018-01-02"), pd.Timestamp("2018-12-31")
         else:
             raise NotImplementedError()
 
@@ -148,7 +151,8 @@ class TradingEnv(gym.Env):
         self.returns_list = []
         self.rewards_list = []
         self.actions_list = []
-        self.values = [self.INITIAL_BALANCE]
+        self.cash = [self.INITIAL_BALANCE]
+        self.investment_value = [0]
         self.cumulative_costs = [0]
         return self._get_current_state()
 
@@ -186,8 +190,7 @@ class TradingEnv(gym.Env):
         roi = self._get_new_return(action)
         self.returns_list.append(roi)
 
-#         R = self._compute_reward_function(action)
-        R = roi #- prev_roi
+        R = self._compute_reward_function(action)
         self.rewards_list.append(R)
         self.actions_list.append(action)
         self.df_index += 1
@@ -220,28 +223,38 @@ class TradingEnv(gym.Env):
         return history
 
     def _get_new_return(self, a):
-        past_value = self.values[-1]
-        current_price = self._get_raw_price()
-        next_price = self._get_raw_price(diff=1)
-        prev_a = self.actions_list[-1] if len(self.actions_list) > 0 else 0
-        
-        n_shares = past_value / current_price
-        cost_of_trade = abs(a - prev_a) * self.TRANSACTION_COST * n_shares               
-                
-        self.cumulative_costs.append(cost_of_trade + self.cumulative_costs[-1])
-        change_in_value = (next_price / current_price - 1) * a * past_value
-        if a == -1:
-            max_return_from_short = past_value
-            change_in_value = min([change_in_value, max_return_from_short])
-        new_value = past_value + change_in_value
-        self.values.append(new_value)
+        self._update_values(a)
+        latest_value = self.cash[-1] + self.investment_value[-1]
+        initial_value = self.INITIAL_BALANCE
+        total_cost = self.cumulative_costs[-1]
         roi = (
             0
-            if (new_value == self.INITIAL_BALANCE)
-            else (new_value - self.INITIAL_BALANCE) / self.cumulative_costs[-1]
+            if (latest_value == self.INITIAL_BALANCE)
+            else (latest_value - self.INITIAL_BALANCE) / total_cost
         )
         return roi
-
+    
+    def _update_values(self, a):
+        current_value = self.cash[-1] + self.investment_value[-1]
+        preserved_value = current_value * (1 - np.abs(a)) # new cash balance
+        invested_value = current_value * np.abs(a)
+        change_in_invested_value = self.prices_pct_change[self.df_index] * np.sign(a) * invested_value
+        if a < 0:
+            change_in_invested_value = min(change_in_invested_value, invested_value) # max return from a short sale
+        new_invested_value = invested_value + change_in_invested_value
+        
+        # no additional cost if the position is constant, 
+        # cost of admission (ie paying the market) and cost of investment (i.e. the lost cash)
+        prev_a = self.actions_list[-1] if len(self.actions_list) else 0
+        cost_of_trade = np.abs(prev_a-a) * current_value * (1 + self.TRANSACTION_COST)
+        
+        self.cash.append(preserved_value)
+        self.cumulative_costs.append(self.cumulative_costs[-1] + cost_of_trade)
+        self.investment_value.append(new_invested_value)
+            
+            
+        
+        
 
 class TradingWithRedditEnv(TradingEnv):
     def __init__(self, ticker="AAPL", target_volatility=10, mode="train"):
