@@ -149,10 +149,12 @@ class TestModelBased:
 
     def test_model_based(self):
         model_agent = ModelBasedAgent()
+        assert model_agent.name == "Model-based"
         e = TradingWithRedditEnv()
         model_agent.run_episode(e)
 
     def test_model_without_text(self):
         model_without_text = ModelBased_NoText_Agent()
+        assert model_without_text.name == "Model-based without Text"
         e_notext = TradingEnv()
         model_without_text.run_episode(e_notext)
