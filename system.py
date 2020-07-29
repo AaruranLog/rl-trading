@@ -73,7 +73,7 @@ class TradingEnv(gym.Env):
         # We must rescale the data dynamically for numerical stability.
         min_prices = self.prices.expanding().min()
         max_prices = self.prices.expanding().max()
-        assert not all(min_prices == max_prices), "Price doesn't change!"
+        assert not all(min_prices == max_prices), "Price doesn't change"
         width = max_prices - min_prices
         width[0] = width[1]
         center = self.prices.expanding().median()
