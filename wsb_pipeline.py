@@ -33,7 +33,7 @@ def get_all_embeddings(ticker):
     q = f"""
         SELECT date, embeddings 
         from wsb
-        where '{ticker}' LIKE body
+        where body LIKE '%{ticker}%'
         order by date
     """
     db = create_engine(DATABASE_URI)
