@@ -35,7 +35,7 @@ class ReplayMemory:
 
 
 STATE_DIM = len(TradingEnv().reset())
-#     print(f"STATE_DIM = {STATE_DIM}")
+# print(f"STATE_DIM = {STATE_DIM}")
 EMBED_DIM = 50  # from the dimensionality-reduced fastText model
 HIDDEN_LAYER = 70  # NN hidden layer size
 ACTION_DIM = 3
