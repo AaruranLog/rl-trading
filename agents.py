@@ -508,7 +508,6 @@ class RewardModel(nn.Module):
         assert not torch.isnan(text).any(), f"NaN in input embedding {text}"
         h_state = F.relu(self.l1_state(state))
         h_text = F.relu(self.l1_text(text))
-        #         h = torch.cat([h_state, h_text], dim=1)
         h = h_state + h_text
         r = self.l2(h)
 
