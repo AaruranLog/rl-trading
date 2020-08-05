@@ -1,0 +1,7 @@
+.coverage
+cache.sqlite
+cc.en.300.bin.gz.part
+csv_database.db
+ft_database.db
+test_history.csv
+training_history.csv
