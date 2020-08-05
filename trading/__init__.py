@@ -1,2 +1,2 @@
-filtered_tickers = open("./filtered_tickers.txt", "r").read().split("\n")
-blacklist = open("./blacklist.txt", "r").read().split("\n")
+filtered_tickers = open("/home/aaruran/Documents/Git/rl-trading/trading/filtered_tickers.txt", "r").read().split("\n")
+blacklist = open("/home/aaruran/Documents/Git/rl-trading/trading/blacklist.txt", "r").read().split("\n")
