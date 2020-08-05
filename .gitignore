@@ -1,5 +1,3 @@
-__pycache__/**
-.ipynb_checkpoints/**
 .coverage
 cache.sqlite
 cc.en.300.bin.gz.part
