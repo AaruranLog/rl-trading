@@ -1,12 +1,10 @@
 import pytest
-from system import *
+from trading.system import *
 from pandas_datareader._utils import RemoteDataError
 from pandas.testing import assert_frame_equal
 import numpy as np
 import math
-
-
-filtered_tickers = open("filtered_tickers.txt", "r").read().split("\n")
+from trading import filtered_tickers
 
 
 def test_tickers():

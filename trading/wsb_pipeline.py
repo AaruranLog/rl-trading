@@ -41,7 +41,7 @@ def get_all_embeddings(ticker):
     return df
 
 
-DATABASE_URI = "sqlite:///ft_database.db"
+DATABASE_URI = "sqlite:///../ft_database.db"
 if __name__ == "__main__":
     chunksize = 10 ** 4
     db = create_engine(DATABASE_URI)

@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from system import *
+from trading import filtered_tickers
+from trading.system import *
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -119,8 +120,7 @@ class BaseAgent:
         self.history = pd.DataFrame()
         self.name = ""
         self.steps_done = 0
-        with open("filtered_tickers.txt", "r") as src:
-            self.filtered_tickers = src.read().split("\n")
+        self.filtered_tickers = filtered_tickers
 
     def run_episode(self, environment):
         """
@@ -474,8 +474,6 @@ class DDPG(BaseAgent):
         self.policy_opt.step()
 
 def main():
-    with open("filtered_tickers.txt", "r") as src:
-        filtered_tickers = src.read().split("\n")
 
     agent_constructors = [DQN, A2C]
     training_history = pd.DataFrame()

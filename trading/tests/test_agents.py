@@ -1,5 +1,5 @@
-from agents import *
-from system import *
+from trading.agents import *
+from trading.system import *
 import pytest
 
 
