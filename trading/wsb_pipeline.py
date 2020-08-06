@@ -59,7 +59,7 @@ if __name__ == "__main__":
     ft_file = working_dir.parent.parent / "fastText" / "cc.en.300.bin"
     ft = fasttext.load_model(ft_file.as_posix())
     fasttext.util.reduce_model(ft, 50)
-
+    # TODO: Refactor this line so that the wsbData.json is loaded without using a relative path !
     wsb_file = working_dir.resolve().parent.parent / "wsbData.json"
     wsb = pd.read_json(wsb_file.as_posix(), lines=True, chunksize=chunksize)
 

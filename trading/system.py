@@ -130,7 +130,7 @@ class TradingEnv(gym.Env):
         elif mode == "test":
             return pd.Timestamp("2018-01-02"), pd.Timestamp("2018-12-31")
         else:
-            raise NotImplementedError()
+            raise ValueError(f"Invalide mode = {mode}")
 
     def _get_raw_price(self, diff=0):
         return self.prices[self.df_index + diff]

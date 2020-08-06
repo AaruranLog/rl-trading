@@ -128,7 +128,9 @@ class BaseAgent:
             reaches a terminal state (ie the training window is complete).
             Must return environment.close()
         """
-        pass
+        dummy = pd.DataFrame({"Date": ["2016-01-01"]})
+        dummy = dummy.set_index("Date")
+        return dummy
 
     def plot_cumulative_discounted_rewards(self):
         raise NotImplementedError("Needs to be refactored.")
@@ -475,17 +477,7 @@ class DDPG(BaseAgent):
 
 
 def main():
-
-    agent_constructors = [DQN, A2C]
-    training_history = pd.DataFrame()
-    for con in agent_constructors:
-        for t in tqdm(filtered_tickers):
-            a = con()
-            e = a.ENV_CONSTRUCTOR(ticker=t, mode="dev")
-            h = a.run_episode(e)
-            h["agent"] = a.name
-            h["t"] = range(len(h))
-            training_history = pd.concat((training_history, h))
+    pass
 
 
 if __name__ == "__main__":

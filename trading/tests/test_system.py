@@ -15,13 +15,14 @@ def validate_numeric_list(x):
     assert not any(map(math.isnan, x)), "Found nan in x."
     return True
 
-
+@pytest.mark.incremental
 class Test_TradingEnv:
     Constructor = TradingEnv
 
     def test_create_env(self):
         env = self.Constructor(mode="train")
         env.reset()
+        env.seed(seed=885)
         _ = env.step(1)
         assert len(env.prices) == len(env.data["x"])
         _ = env.data.columns
@@ -83,6 +84,19 @@ class Test_TradingEnv:
         env.reset()
         _, R, __, ___ = env.step(1)
         assert isinstance(R, float)
+        
+    def test_prices(self):
+        env = self.Constructor(mode='dev')
+        for i in range(-env.WINDOW_SIZE+1, env.WINDOW_SIZE-1):
+            assert not math.isnan(env._get_raw_price(diff=i))
+            assert not math.isnan(env._get_normalized_price(diff=i))
+        
+    def test_invalid_mode(self):
+        with pytest.raises(AssertionError):
+            env = self.Constructor(mode='?')
+        env = self.Constructor()
+        with pytest.raises(ValueError):
+            env.get_time_endpoints('?')
 
 
 @pytest.mark.incremental
