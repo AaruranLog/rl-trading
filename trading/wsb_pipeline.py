@@ -10,6 +10,7 @@ from sqlalchemy.types import DateTime, String
 from tqdm import tqdm
 import pathlib
 
+
 def lookup_sentence_embedding(text):
     tokens = text.split(" ")
     word_vectors = np.array([ft.get_word_vector(t) for t in tokens])
@@ -24,11 +25,13 @@ def create_comment_vectors(chunk):
                 chunk["created_utc"], unit="s", origin="unix"
             ).dt.date,
             "body": chunk["body"],
-            "embeddings": chunk["body"].apply(lookup_sentence_embglanedding),
+            "embeddings": chunk["body"].apply(lookup_sentence_embedding),
         }
     )
-    cleaned_chunk['date'] = pd.to_datetime(cleaned_chunk['date'])
-    cleaned_chunk[['body', 'embeddings']] = cleaned_chunk[['body', 'embeddings']].astype('str')
+    cleaned_chunk["date"] = pd.to_datetime(cleaned_chunk["date"])
+    cleaned_chunk[["body", "embeddings"]] = cleaned_chunk[
+        ["body", "embeddings"]
+    ].astype("str")
     return cleaned_chunk
 
 
@@ -44,26 +47,28 @@ def get_all_embeddings(ticker):
     return df
 
 
-working_dir = pathlib.Path.cwd() # this should always end in /rl-trading/trading
-db_file = (working_dir.parent / 'ft_database.db').as_posix()
+working_dir = pathlib.Path.cwd()  # this should always end in /rl-trading/trading
+db_file = (working_dir.parent / "ft_database.db").as_posix()
 # DATABASE_URI = "sqlite:///../ft_database.db"
-DATABASE_URI = 'sqlite:///' + db_file
+DATABASE_URI = "sqlite:///" + db_file
 
 if __name__ == "__main__":
-    chunksize = 10 ** 3
+    chunksize = 10 ** 4
     db = create_engine(DATABASE_URI, echo=True)
-    ft_file = working_dir.parent.parent / 'fastText' / 'cc.en.300.bin'
+    # TODO: Refactor this line so that the fastText model is loaded without using a relative path !
+    ft_file = working_dir.parent.parent / "fastText" / "cc.en.300.bin"
     ft = fasttext.load_model(ft_file.as_posix())
     fasttext.util.reduce_model(ft, 50)
 
-    wsb_file = working_dir.resolve().parent.parent / 'wsbData.json'
+    wsb_file = working_dir.resolve().parent.parent / "wsbData.json"
     wsb = pd.read_json(wsb_file.as_posix(), lines=True, chunksize=chunksize)
 
     for chunk in tqdm(wsb):
         cleaned_chunk = create_comment_vectors(chunk)
-        cleaned_chunk.to_sql("wsb", db, if_exists="append", index=False,
-                            dtype={
-                                "date" : DateTime,
-                                "body" : String(600),
-                                "embeddings" : String(1200)
-                            })
+        cleaned_chunk.to_sql(
+            "wsb",
+            db,
+            if_exists="append",
+            index=False,
+            dtype={"date": DateTime, "body": String(600), "embeddings": String(1200)},
+        )
