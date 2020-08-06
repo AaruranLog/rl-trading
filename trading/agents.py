@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from system import *
+from trading import filtered_tickers
+from trading.system import *
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -119,8 +120,7 @@ class BaseAgent:
         self.history = pd.DataFrame()
         self.name = ""
         self.steps_done = 0
-        with open("filtered_tickers.txt", "r") as src:
-            self.filtered_tickers = src.read().split("\n")
+        self.filtered_tickers = filtered_tickers
 
     def run_episode(self, environment):
         """
@@ -128,7 +128,9 @@ class BaseAgent:
             reaches a terminal state (ie the training window is complete).
             Must return environment.close()
         """
-        pass
+        dummy = pd.DataFrame({"Date": ["2016-01-01"]})
+        dummy = dummy.set_index("Date")
+        return dummy
 
     def plot_cumulative_discounted_rewards(self):
         raise NotImplementedError("Needs to be refactored.")
@@ -473,20 +475,9 @@ class DDPG(BaseAgent):
         policy_loss.backward()
         self.policy_opt.step()
 
-def main():
-    with open("filtered_tickers.txt", "r") as src:
-        filtered_tickers = src.read().split("\n")
 
-    agent_constructors = [DQN, A2C]
-    training_history = pd.DataFrame()
-    for con in agent_constructors:
-        for t in tqdm(filtered_tickers):
-            a = con()
-            e = a.ENV_CONSTRUCTOR(ticker=t, mode="dev")
-            h = a.run_episode(e)
-            h["agent"] = a.name
-            h["t"] = range(len(h))
-            training_history = pd.concat((training_history, h))
+def main():
+    pass
 
 
 if __name__ == "__main__":
@@ -603,10 +594,12 @@ class ModelBasedAgent(BaseAgent):
                             state_tensor,
                             t1_tensor,
                             action,  # action is already a tensor
-                            t2_tensor
+                            t2_tensor,
                         )
                     )
-            self.learn(state_tensor, text_tensor, action, next_state, next_text_tensor, reward)
+            self.learn(
+                state_tensor, text_tensor, action, next_state, next_text_tensor, reward
+            )
             state = next_state
             self.steps_done += 1
             if done:
@@ -614,57 +607,65 @@ class ModelBasedAgent(BaseAgent):
         history = environment.close()
         return history
 
-    def learn(self, state_tensor, text_tensor, action, next_state, next_text_tensor, reward):
+    def learn(
+        self, state_tensor, text_tensor, action, next_state, next_text_tensor, reward
+    ):
         # update Transition
         next_state_from_seq = FloatTensor([next_state[-5:]])
-        predicted_next_state= self.T(state_tensor)
+        predicted_next_state = self.T(state_tensor)
         T_loss = F.smooth_l1_loss(predicted_next_state, next_state_from_seq)
         self.T_opt.zero_grad()
         T_loss.backward()
         self.T_opt.step()
-        
+
         # update Reward
-        predicted_reward = self.R(state_tensor, text_tensor).gather(1, action).squeeze(1)
+        predicted_reward = (
+            self.R(state_tensor, text_tensor).gather(1, action).squeeze(1)
+        )
         reward_tensor = FloatTensor([reward])
         R_loss = F.smooth_l1_loss(predicted_reward, reward_tensor)
         self.R_opt.zero_grad()
         R_loss.backward()
         self.R_opt.step()
-        
+
         # update Q-net
         q = self.Q(state_tensor, text_tensor).gather(1, action).squeeze(0)
         next_state_tensor = FloatTensor([next_state])
-        future_q = reward + self.gamma * self.Q(next_state_tensor, next_text_tensor).max(dim=1)[0]
+        future_q = (
+            reward
+            + self.gamma * self.Q(next_state_tensor, next_text_tensor).max(dim=1)[0]
+        )
         Q_loss = F.smooth_l1_loss(q, future_q.detach())
         self.Q_opt.zero_grad()
         Q_loss.backward()
         self.Q_opt.step()
-        
+
         if len(self.memory) <= self.BATCH_SIZE:
             return
-        
+
         # random transition batch is taken from experience replay memory
         transitions = self.memory.sample(self.BATCH_SIZE)
-        batch_state, batch_text, batch_action, batch_next_text = zip(
-            *transitions
-        )
+        batch_state, batch_text, batch_action, batch_next_text = zip(*transitions)
         batch_state = Variable(torch.cat(batch_state))
         batch_text = Variable(torch.cat(batch_text))
         batch_action = Variable(torch.cat(batch_action))
         batch_next_text = Variable(torch.cat(batch_next_text))
-        
+
         batch_next_state = self.T.next_state(batch_state).detach()
-        batch_reward = self.R(batch_state, batch_text).detach().gather(1, batch_action).squeeze(1)
+        batch_reward = (
+            self.R(batch_state, batch_text).detach().gather(1, batch_action).squeeze(1)
+        )
 
         # current Q values are estimated by NN for all actions
-        current_q_values = self.Q(batch_state, batch_text).gather(1, batch_action).squeeze()
+        current_q_values = (
+            self.Q(batch_state, batch_text).gather(1, batch_action).squeeze()
+        )
         simulated_q_values = self.Q(batch_next_state, batch_next_text).max(dim=1)[0]
         future_q = batch_reward + self.gamma * simulated_q_values
         simulated_q_loss = F.smooth_l1_loss(current_q_values, future_q.detach())
         self.Q_opt.zero_grad()
         simulated_q_loss.backward()
         self.Q_opt.step()
-
 
 
 class ModelBased_NoText_Agent(BaseAgent):

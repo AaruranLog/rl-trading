@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 import ast
 import re
 import warnings
-from wsb_pipeline import get_all_embeddings
+from trading.wsb_pipeline import get_all_embeddings
 import requests_cache
 import datetime
 import math
@@ -130,7 +130,7 @@ class TradingEnv(gym.Env):
         elif mode == "test":
             return pd.Timestamp("2018-01-02"), pd.Timestamp("2018-12-31")
         else:
-            raise NotImplementedError()
+            raise ValueError(f"Invalide mode = {mode}")
 
     def _get_raw_price(self, diff=0):
         return self.prices[self.df_index + diff]
@@ -165,26 +165,30 @@ class TradingEnv(gym.Env):
     def _compute_reward_function(self, action):
         #         next_price = np.log(self._get_normalized_price(diff=1))
         #         price = np.log(self._get_normalized_price())
-        
-        new_value = self.cash[-1] + self.investment_value[-1] - self.cumulative_costs[-1]
-        prev_value= self.cash[-2] + self.investment_value[-2] - self.cumulative_costs[-2]
-        R = (new_value - prev_value)
 
-#         next_price = self._get_normalized_price(diff=1)
-#         price = self._get_normalized_price()
-#         r = next_price - price
-#         mu = 1
+        new_value = (
+            self.cash[-1] + self.investment_value[-1] - self.cumulative_costs[-1]
+        )
+        prev_value = (
+            self.cash[-2] + self.investment_value[-2] - self.cumulative_costs[-2]
+        )
+        R = new_value - prev_value
 
-#         sigma = self.data["std"][self.df_index]
-#         sigma_prev = self.data["std"][self.df_index - 1]
-#         term1 = action * self.target_volatility * r / sigma
-#         prev_action = self.actions_list[-1] if len(self.actions_list) > 0 else 0
-#         term2 = (
-#             price
-#             * self.TRANSACTION_COST
-#             * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
-#         )
-#         R = mu * (term1 - term2)
+        #         next_price = self._get_normalized_price(diff=1)
+        #         price = self._get_normalized_price()
+        #         r = next_price - price
+        #         mu = 1
+
+        #         sigma = self.data["std"][self.df_index]
+        #         sigma_prev = self.data["std"][self.df_index - 1]
+        #         term1 = action * self.target_volatility * r / sigma
+        #         prev_action = self.actions_list[-1] if len(self.actions_list) > 0 else 0
+        #         term2 = (
+        #             price
+        #             * self.TRANSACTION_COST
+        #             * np.abs(term1 - self.target_volatility * prev_action / sigma_prev)
+        #         )
+        #         R = mu * (term1 - term2)
         return R
 
     def step(self, action):
@@ -202,11 +206,11 @@ class TradingEnv(gym.Env):
         self.returns_list.append(roi)
 
         R = self._compute_reward_function(action)
-# #         R = (roi + prev_roi) / (np.sqrt(2) * np.abs(roi - prev_roi) + 1e-6)
-# #         R = roi - prev_roi
-#         new_value = self.cash[-1] + self.investment_value[-1] - self.cumulative_costs[-1]
-#         prev_value= self.cash[-2] + self.investment_value[-2] - self.cumulative_costs[-2]
-#         R = (new_value - prev_value)
+        # #         R = (roi + prev_roi) / (np.sqrt(2) * np.abs(roi - prev_roi) + 1e-6)
+        # #         R = roi - prev_roi
+        #         new_value = self.cash[-1] + self.investment_value[-1] - self.cumulative_costs[-1]
+        #         prev_value= self.cash[-2] + self.investment_value[-2] - self.cumulative_costs[-2]
+        #         R = (new_value - prev_value)
         self.rewards_list.append(R)
         self.actions_list.append(action)
         self.df_index += 1
