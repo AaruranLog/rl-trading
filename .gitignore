@@ -8,3 +8,4 @@ cc.en.300.bin.gz.part
 ft_database.db
 test_history.csv
 training_history.csv
+.vscode/settings.json
