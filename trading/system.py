@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 import ast
 import re
 import warnings
-from trading.wsb_pipeline import get_all_embeddings
+from trading.data.wsb_pipeline import get_all_embeddings
 import requests_cache
 import datetime
 import math

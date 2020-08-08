@@ -49,7 +49,6 @@ def get_all_embeddings(ticker):
 
 working_dir = pathlib.Path.cwd()  # this should always end in /rl-trading/trading
 db_file = (working_dir.parent / "ft_database.db").as_posix()
-# DATABASE_URI = "sqlite:///../ft_database.db"
 DATABASE_URI = "sqlite:///" + db_file
 
 if __name__ == "__main__":

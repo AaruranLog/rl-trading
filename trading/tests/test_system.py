@@ -148,7 +148,7 @@ class Test_RedditEnv(Test_TradingEnv):
     def basic_loop(self, t, *args, **kwargs):
         env = TradingWithRedditEnv(ticker=t)
         state, text_vectors = env.reset()
-        assert isinstance(text_vectors, list), f"Expected list, but got {type(vectors)}"
+        assert isinstance(text_vectors, list), f"Expected list, but got {type(text_vectors)}"
         done = False
         while not done:
             action = np.random.randint(low=-1, high=2)
@@ -156,7 +156,7 @@ class Test_RedditEnv(Test_TradingEnv):
             assert len(state) == len(next_state)
             assert isinstance(
                 next_text, list
-            ), f"Expected list, but got {type(vectors)}"
+            ), f"Expected list, but got {type(next_text)}"
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
         assert_frame_equal(h, h.fillna(np.inf))
