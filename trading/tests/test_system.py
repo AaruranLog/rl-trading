@@ -63,12 +63,6 @@ class Test_TradingEnv:
         with pytest.raises(AssertionError):
             env.step([0])
 
-    def test_action_error_list(self):
-        env = self.Constructor(mode="dev")
-        env.reset()
-        with pytest.raises(AssertionError):
-            env.step([0])
-
     def test_action_succeeds(self):
         env = self.Constructor(mode="dev")
         env.reset()

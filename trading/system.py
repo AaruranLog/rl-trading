@@ -23,9 +23,7 @@ class TradingEnv(gym.Env):
     TRANSACTION_COST = 0.0001  # per share
     WINDOW_SIZE = 14
     expire_after = datetime.timedelta(days=14)
-    session = requests_cache.CachedSession(
-        cache_name="cache", backend="sqlite", expire_after=expire_after
-    )
+    session = requests_cache.CachedSession(cache_name="cache", backend="sqlite", expire_after=expire_after)
 
     def __init__(
         self, ticker="AAPL", target_volatility=1, mode="train", window_size=14

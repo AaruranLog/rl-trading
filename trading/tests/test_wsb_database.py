@@ -7,12 +7,8 @@ from pandas.testing import assert_frame_equal
 
 def test_basic_query():
     db = create_engine(DATABASE_URI, pool_pre_ping=True)
-
-    conn = sqlite3.connect("./data/ft_database.db")
-    c = conn.cursor()
-
     queries = pd.read_sql_query(
-        "select body from wsb where date = '2016-01-01' limit 1", conn
+        "select body from wsb where date = '2016-01-01' limit 1", db
     )
 
 
