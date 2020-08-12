@@ -13,3 +13,4 @@ trading/data/wsbData.json
 trading/data/cc.en.300.bin
 cc.en.300.bin
 wsbData.json
+.pytest_cache/**

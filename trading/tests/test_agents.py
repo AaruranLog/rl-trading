@@ -64,10 +64,6 @@ class TestLongOnlyAgent(TestBaseAgent):
 class TestDQN(TestBaseAgent):
     agent_constructor = DQN
 
-#     def __init__(self):
-#         super().__init__()
-#         self.agent_constructor = DQN
-    
     def test_q_net(self):
         net = QNetwork()
         x1 = FloatTensor([TradingEnv().reset()])
@@ -89,11 +85,6 @@ class TestDQN(TestBaseAgent):
 @pytest.mark.incremental
 class TestA2C(TestBaseAgent):
     agent_constructor = A2C
-
-#     def __init__(self):
-#         super().__init__()
-#         self.agent_constructor = A2C
-    
     def test_policy_net(self):
         net = PolicyNetwork()
         x1 = FloatTensor([TradingEnv().reset()])
@@ -136,17 +127,11 @@ def TestDDPG(TestA2C):
         agent.run_episode(env)
         validate_net(agent.model)
         validate_net(agent.policy)
-
-#     def __init__(self):
-#         self.agent_constructor = DDPG
         
 
 @pytest.mark.incremental
 class TestModelBased(TestBaseAgent):
     agent_constructor = ModelBasedAgent
-#     def __init__(self):
-#         super().__init__()
-#         self.agent_constructor = ModelBasedAgent
     def test_reward_model(self):
         m = RewardModel()
         state, text = TradingWithRedditEnv().reset()
