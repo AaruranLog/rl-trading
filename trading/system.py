@@ -22,6 +22,23 @@ pd.options.mode.chained_assignment = None
 yf.pdr_override()
 
 
+"""
+TODO: Heavily refactor this
+     - prepare better features
+           --(e.g. using ETF Trick, pct_change, etc)
+     - identify a better design pattern (Polymorphism? Factory?)
+     - include crypto data
+     - ensure that cache.sqlite doesn't move around
+     - add RSI as a feature
+     - stop melting indicators into a column vector, let the agent do that
+     - prepare the option to select a reward function (e.g. delta ROI, volatility-scaling,
+           differential Sharpe Ratio (most promising!))
+     - thoroughly profile this code
+     - use multiprocessing / Cython to extract better performance
+     - add profiling tests to ensure step function is highly optimized
+"""
+
+
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
     TRANSACTION_COST = 0.0001  # per share

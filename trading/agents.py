@@ -50,6 +50,15 @@ FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 ByteTensor = torch.cuda.ByteTensor if use_cuda else torch.ByteTensor
 Tensor = FloatTensor
+"""
+TODO: Heavily refactor this
+     - conceal these torch.cuda.*Tensor things
+     - wrap cuda as a param into the agent
+     - remove the STATE_DIM functionality. Each agent should have the option to choose a STATE_DIM
+     - each agent should have the option to choose the network(s) it uses. Possibly importing from another submodule?
+     - add profiling tests to ensure forward/backward passes are fast-ish for the nets
+     - add profiling tests to ensure the RL training loops are highly optimized
+"""
 
 
 if use_cuda:
