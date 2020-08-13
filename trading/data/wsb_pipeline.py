@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import pandas as pd
-import numpy as np
+import pathlib
+
 import fasttext
 import fasttext.util
+import numpy as np
+import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.types import DateTime, String
 from tqdm import tqdm
-import pathlib
 
 
 def get_all_embeddings(ticker):
@@ -82,17 +83,13 @@ def create_comment_vectors(chunk):
     """
     cleaned_chunk = pd.DataFrame(
         {
-            "date": pd.to_datetime(
-                chunk["created_utc"], unit="s", origin="unix"
-            ).dt.date,
+            "date": pd.to_datetime(chunk["created_utc"], unit="s", origin="unix").dt.date,
             "body": chunk["body"],
             "embeddings": chunk["body"].apply(lookup_sentence_embedding),
         }
     )
     cleaned_chunk["date"] = pd.to_datetime(cleaned_chunk["date"])
-    cleaned_chunk[["body", "embeddings"]] = cleaned_chunk[
-        ["body", "embeddings"]
-    ].astype("str")
+    cleaned_chunk[["body", "embeddings"]] = cleaned_chunk[["body", "embeddings"]].astype("str")
     return cleaned_chunk
 
 
@@ -110,11 +107,7 @@ if __name__ == "__main__":
                 db,
                 if_exists="append",
                 index=False,
-                dtype={
-                    "date": DateTime,
-                    "body": String(600),
-                    "embeddings": String(1200),
-                },
+                dtype={"date": DateTime, "body": String(600), "embeddings": String(1200),},
             )
         print("done.")
     else:

@@ -1,10 +1,12 @@
-import pytest
-from trading.system import *
-from pandas_datareader._utils import RemoteDataError
-from pandas.testing import assert_frame_equal
-import numpy as np
 import math
+
+import numpy as np
+import pytest
+from pandas.testing import assert_frame_equal
+from pandas_datareader._utils import RemoteDataError
+
 from trading import filtered_tickers
+from trading.system import *
 
 
 def test_tickers():
@@ -14,6 +16,7 @@ def test_tickers():
 def validate_numeric_list(x):
     assert not any(map(math.isnan, x)), "Found nan in x."
     return True
+
 
 @pytest.mark.incremental
 class Test_TradingEnv:
@@ -72,19 +75,19 @@ class Test_TradingEnv:
         env.reset()
         _, R, __, ___ = env.step(1)
         assert isinstance(R, float)
-        
+
     def test_prices(self):
-        env = self.Constructor(mode='dev')
-        for i in range(-env.WINDOW_SIZE+1, env.WINDOW_SIZE-1):
+        env = self.Constructor(mode="dev")
+        for i in range(-env.WINDOW_SIZE + 1, env.WINDOW_SIZE - 1):
             assert not math.isnan(env._get_raw_price(diff=i))
             assert not math.isnan(env._get_normalized_price(diff=i))
-        
+
     def test_invalid_mode(self):
         with pytest.raises(AssertionError):
-            env = self.Constructor(mode='?')
+            env = self.Constructor(mode="?")
         env = self.Constructor()
         with pytest.raises(ValueError):
-            env.get_time_endpoints('?')
+            env.get_time_endpoints("?")
 
 
 @pytest.mark.incremental
@@ -117,7 +120,6 @@ class Test_CntsEnv(Test_TradingEnv):
         h = env.close()
         assert_frame_equal(h, h.fillna(np.inf))
 
-
     def test_cnts_loop(self):
         self.basic_loop("AAPL")
         self.basic_loop("TSLA")
@@ -132,7 +134,7 @@ class Test_RedditEnv(Test_TradingEnv):
         validate_numeric_list(state)
 
     def basic_loop(self, t, *args, **kwargs):
-        env = TradingWithRedditEnv(ticker=t)
+        env = self.Constructor(ticker=t)
         state, text_vectors = env.reset()
         assert isinstance(text_vectors, list), f"Expected list, but got {type(text_vectors)}"
         done = False
@@ -140,9 +142,7 @@ class Test_RedditEnv(Test_TradingEnv):
             action = np.random.randint(low=-1, high=2)
             (next_state, next_text), r, done, _ = env.step(action)
             assert len(state) == len(next_state)
-            assert isinstance(
-                next_text, list
-            ), f"Expected list, but got {type(next_text)}"
+            assert isinstance(next_text, list), f"Expected list, but got {type(next_text)}"
         assert len(env.returns_list) == len(env.actions_list)
         h = env.close()
         assert_frame_equal(h, h.fillna(np.inf))
@@ -161,9 +161,7 @@ class TestValidData:
         trading_data = e.data[start_index : final_index + 1]
         assert_frame_equal(trading_data, trading_data.fillna(np.inf))
 
-        assert (
-            trading_data["std"].min() > 0
-        ), f"Zero standard deviation found in {t} data."
+        assert trading_data["std"].min() > 0, f"Zero standard deviation found in {t} data."
 
     def test_mmm_download(self):
         self.validate_all_data("MMM")

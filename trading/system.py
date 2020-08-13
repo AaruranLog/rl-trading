@@ -1,34 +1,37 @@
 #!/usr/bin/env python
 # coding: utf-8
-import pandas as pd
-import pandas_datareader.data as web
-import yfinance as yf
-import numpy as np
-import matplotlib.pyplot as plt
-import gym
-import tulipy as ti
-from sqlalchemy import create_engine
 import ast
-import re
-import warnings
-from trading.data.wsb_pipeline import get_all_embeddings
-import requests_cache
 import datetime
 import math
+import re
+import warnings
+
+import gym
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pandas_datareader.data as web
+import requests_cache
+import tulipy as ti
+import yfinance as yf
+from sqlalchemy import create_engine
+
+from trading.data.wsb_pipeline import get_all_embeddings
 
 pd.options.mode.chained_assignment = None
 yf.pdr_override()
+
 
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
     TRANSACTION_COST = 0.0001  # per share
     WINDOW_SIZE = 14
     expire_after = datetime.timedelta(days=14)
-    session = requests_cache.CachedSession(cache_name="cache", backend="sqlite", expire_after=expire_after)
+    session = requests_cache.CachedSession(
+        cache_name="cache", backend="sqlite", expire_after=expire_after
+    )
 
-    def __init__(
-        self, ticker="AAPL", target_volatility=1, mode="train", window_size=14
-    ):
+    def __init__(self, ticker="AAPL", target_volatility=1, mode="train", window_size=14):
         self.ticker = ticker
         self.WINDOW_SIZE = window_size
         self.window = pd.Timedelta(days=self.WINDOW_SIZE)
@@ -53,15 +56,13 @@ class TradingEnv(gym.Env):
         self.start = start
         self.end = end
         # We need prepadding for MACD, and the rolling calcuations
-        prepadding = pd.Timedelta(
-            days=self.short_time + self.long_time + self.WINDOW_SIZE + 7
-        )
+        prepadding = pd.Timedelta(days=self.short_time + self.long_time + self.WINDOW_SIZE + 7)
 
-        postpadding = pd.Timedelta(
-            days=7
-        )  # to get around the weekend and possible holidays
-        
-        self.prices = web.get_data_yahoo('AAPL', start=start-prepadding, end=end+postpadding, session=self.session)['Close']
+        postpadding = pd.Timedelta(days=7)  # to get around the weekend and possible holidays
+
+        self.prices = web.get_data_yahoo(
+            "AAPL", start=start - prepadding, end=end + postpadding, session=self.session
+        )["Close"]
         self.prices_pct_change = self.prices.pct_change()
 
         # We must rescale the data dynamically for numerical stability.
@@ -87,9 +88,7 @@ class TradingEnv(gym.Env):
 
         self.data["std"] = self.data["x"].rolling(self.WINDOW_SIZE).std()
         smallest_nonzero_std = self.data["std"][self.data["std"] > 0].expanding().min()
-        self.data["std"][self.data["std"] == 0] = smallest_nonzero_std[
-            self.data["std"] == 0
-        ]
+        self.data["std"][self.data["std"] == 0] = smallest_nonzero_std[self.data["std"] == 0]
         # Use additive returns, because the reward is computed using the additive return
         #         rets = self.prices - self.prices.shift(-1)
         rets = self.prices.diff().shift(-1)
@@ -160,12 +159,8 @@ class TradingEnv(gym.Env):
         #         next_price = np.log(self._get_normalized_price(diff=1))
         #         price = np.log(self._get_normalized_price())
 
-        new_value = (
-            self.cash[-1] + self.investment_value[-1] - self.cumulative_costs[-1]
-        )
-        prev_value = (
-            self.cash[-2] + self.investment_value[-2] - self.cumulative_costs[-2]
-        )
+        new_value = self.cash[-1] + self.investment_value[-1] - self.cumulative_costs[-1]
+        prev_value = self.cash[-2] + self.investment_value[-2] - self.cumulative_costs[-2]
         R = new_value - prev_value
 
         #         next_price = self._get_normalized_price(diff=1)
@@ -279,9 +274,7 @@ class TradingWithRedditEnv(TradingEnv):
         stocks = stocks.reset_index("Date")
         stocks["date"] = stocks["Date"]
         #         stocks.drop('Date', inplace=True)
-        self.embedding_lookup = pd.merge(stocks, text, how="left")[
-            ["date", "embeddings"]
-        ]
+        self.embedding_lookup = pd.merge(stocks, text, how="left")[["date", "embeddings"]]
 
     def _get_current_embeddings(self):
         date = self._get_date()
