@@ -60,13 +60,7 @@ class TradingEnv(gym.Env):
         postpadding = pd.Timedelta(
             days=7
         )  # to get around the weekend and possible holidays
-        # self.prices = web.DataReader(
-        #     self.ticker,
-        #     "yahoo",
-        #     start=start - prepadding,
-        #     end=end + postpadding,
-        #     session=self.session,
-        # )["Close"]
+        
         self.prices = web.get_data_yahoo('AAPL', start=start-prepadding, end=end+postpadding, session=self.session)['Close']
         self.prices_pct_change = self.prices.pct_change()
 
@@ -206,11 +200,6 @@ class TradingEnv(gym.Env):
         self.returns_list.append(roi)
 
         R = self._compute_reward_function(action)
-        # #         R = (roi + prev_roi) / (np.sqrt(2) * np.abs(roi - prev_roi) + 1e-6)
-        # #         R = roi - prev_roi
-        #         new_value = self.cash[-1] + self.investment_value[-1] - self.cumulative_costs[-1]
-        #         prev_value= self.cash[-2] + self.investment_value[-2] - self.cumulative_costs[-2]
-        #         R = (new_value - prev_value)
         self.rewards_list.append(R)
         self.actions_list.append(action)
         self.df_index += 1

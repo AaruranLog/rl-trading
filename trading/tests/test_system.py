@@ -45,12 +45,6 @@ class Test_TradingEnv:
         h = env.close()
         assert_frame_equal(h, h.fillna(np.inf))
 
-    #         assert all(h == h.fillna(np.inf)), "Invalid history"
-
-    # def test_CELG_download_fails(self):
-    #     with pytest.raises(RemoteDataError):
-    #         self.basic_loop(t="CELG")
-
     def test_action_error_float(self):
         env = self.Constructor(mode="dev")
         env.reset()
@@ -101,7 +95,6 @@ class Test_CntsEnv(Test_TradingEnv):
         actions = np.linspace(-1, 1, 100)
         np.random.seed(885)
         np.random.shuffle(actions)
-        #     e = ContinuousTradingEnv('AAPL', 10, "train")
         e = ContinuousTradingEnv()
         for a in actions:
             e.reset()
@@ -124,7 +117,6 @@ class Test_CntsEnv(Test_TradingEnv):
         h = env.close()
         assert_frame_equal(h, h.fillna(np.inf))
 
-    #         assert all(h == h.fillna(np.inf)), "Invalid history"
 
     def test_cnts_loop(self):
         self.basic_loop("AAPL")
@@ -192,11 +184,4 @@ class TestValidData:
     def test_all_tickers_download_and_valid(self):
         errors = {}
         for t in filtered_tickers:
-            try:
-                self.validate_all_data(t)
-            except AssertionError as ex:
-                errors[t] = ex
-        if len(errors):
-            raise AssertionError(
-                f"Failed {len(errors)}/{len(filtered_tickers)}, {errors.keys()}"
-            )
+            self.validate_all_data(t)

@@ -41,17 +41,6 @@ EMBED_DIM = 50  # from the dimensionality-reduced fastText model
 HIDDEN_LAYER = 70  # NN hidden layer size
 ACTION_DIM = 3
 
-# EPISODES = 2000  # number of episodes
-# EPS_START = 0.9  # e-greedy threshold start value
-# EPS_END = 0.05  # e-greedy threshold end value
-# EPS_DECAY = 200  # e-greedy threshold decay
-# # GAMMA = 0.99  # Q-learning discount factor
-# LR = 0.001  # NN optimizer learning rate
-# HIDDEN_LAYER = 128  # NN hidden layer size
-# BATCH_SIZE = 16  # Q-learning batch size
-# TARGET_UPDATE = 100  # frequency of target update
-# BUFFER_SIZE = 100  # capacity of the replay buffer
-
 # if gpu is to be used
 # use_cuda = torch.cuda.is_available()
 use_cuda = False
@@ -103,8 +92,6 @@ class QNetwork(nn.Module):
 
 
 class BaseAgent:
-    #     EPISODES = 2000  # number of episodes
-
     LR = 0.001  # NN optimizer learning rate
 
     BATCH_SIZE = 16  # Q-learning batch size
@@ -141,7 +128,6 @@ class BaseAgent:
         )
         rl_data = rl_data[["episode", "discounted_future_reward"]]
         rl_data = rl_data.groupby("episode").sum()
-        #         rl_plot = sns.lineplot(data=rl_data, legend=False)
         title = "Cumulative Discounted Rewards over Episodes"
         if len(self.name):
             title = f"Cumulative Discounted Reward for {self.name}"
@@ -156,7 +142,6 @@ class BaseAgent:
     def convert_action(self, action):
         assert action in [0, 1, 2], f"Invalid action: {action}"
         position = action - 1
-        #         assert position in [-1,0,1]
         return position.item()
 
     def train(self, num_tickers=4, episodes_per_ticker=5, **kwargs):
@@ -176,12 +161,12 @@ class BaseAgent:
                 self.history = pd.concat((self.history, history))
         self.history = self.history.reset_index("Date", drop=True)
 
-    def plot_returns(self, ticker):
-        h = self.history
-        roi_data = h[h.ticker == ticker][["date", "episode", "returns"]]
-        plt.title(f"Returns for {ticker}")
-        roi_plot = sns.lineplot(data=h, x="date", y="returns", hue="episode")
-        roi_plot.set_xticklabels(roi_plot.get_xticklabels(), rotation=45)
+    # def plot_returns(self, ticker):
+    #     h = self.history
+    #     roi_data = h[h.ticker == ticker][["date", "episode", "returns"]]
+    #     plt.title(f"Returns for {ticker}")
+    #     roi_plot = sns.lineplot(data=h, x="date", y="returns", hue="episode")
+    #     roi_plot.set_xticklabels(roi_plot.get_xticklabels(), rotation=45)
 
 
 class DQN(BaseAgent):
