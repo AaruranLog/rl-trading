@@ -1,15 +1,33 @@
 import pytest
 from trading.system import *
-from .test_system import Test_TradingEnv
 from pandas_datareader._utils import RemoteDataError
+from pandas.testing import assert_frame_equal
 from trading import filtered_tickers, blacklist
 import pathlib
 
+
+def validate_numeric_list(x):
+    assert not any(map(math.isnan, x)), "Found nan in x."
+    return True
+
+def basic_loop(t, *args, **kwargs):
+    env = TradingEnv(ticker=t, *args, **kwargs)
+    state = env.reset()
+    validate_numeric_list(state)
+    done = False
+    while not done:
+        action = 0
+        next_state, r, done, _ = env.step(action)
+        assert len(state) == len(next_state)
+    assert len(env.returns_list) == len(env.actions_list)
+    h = env.close()
+    assert_frame_equal(h, h.fillna(np.inf))
 def test_blacklist():
     for b in blacklist:
-        print(b)
-        with pytest.raises(Exception) as e_info:
-            Test_TradingEnv.basic_loop(b)
+        if len(b):
+            print(b)
+            with pytest.raises(Exception) as e_info:
+                basic_loop(b)
 
 
 def test_filtered():

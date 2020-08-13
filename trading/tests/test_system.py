@@ -47,9 +47,9 @@ class Test_TradingEnv:
 
     #         assert all(h == h.fillna(np.inf)), "Invalid history"
 
-    def test_CELG_download_fails(self):
-        with pytest.raises(RemoteDataError):
-            self.basic_loop(t="CELG")
+    # def test_CELG_download_fails(self):
+    #     with pytest.raises(RemoteDataError):
+    #         self.basic_loop(t="CELG")
 
     def test_action_error_float(self):
         env = self.Constructor(mode="dev")

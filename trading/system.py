@@ -2,6 +2,7 @@
 # coding: utf-8
 import pandas as pd
 import pandas_datareader.data as web
+import yfinance as yf
 import numpy as np
 import matplotlib.pyplot as plt
 import gym
@@ -16,7 +17,7 @@ import datetime
 import math
 
 pd.options.mode.chained_assignment = None
-
+yf.pdr_override()
 
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
@@ -59,13 +60,14 @@ class TradingEnv(gym.Env):
         postpadding = pd.Timedelta(
             days=7
         )  # to get around the weekend and possible holidays
-        self.prices = web.DataReader(
-            self.ticker,
-            "yahoo",
-            start=start - prepadding,
-            end=end + postpadding,
-            session=self.session,
-        )["Close"]
+        # self.prices = web.DataReader(
+        #     self.ticker,
+        #     "yahoo",
+        #     start=start - prepadding,
+        #     end=end + postpadding,
+        #     session=self.session,
+        # )["Close"]
+        self.prices = web.get_data_yahoo('AAPL', start=start-prepadding, end=end+postpadding, session=self.session)['Close']
         self.prices_pct_change = self.prices.pct_change()
 
         # We must rescale the data dynamically for numerical stability.
