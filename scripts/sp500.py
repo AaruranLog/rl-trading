@@ -70,7 +70,7 @@ with open('raw_sp500.tsv', 'r') as src:
 # In[6]:
 
 
-assert len(clean_stocks) == 386, "clean stocks missing. check golden files"
+assert len(clean_stocks) == 505, "clean stocks missing. check golden files"
 
 
 # In[7]:

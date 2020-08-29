@@ -1,21 +1,23 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from trading import filtered_tickers
-from trading.system import *
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.autograd import Variable
-import torch.nn.functional as F
-import matplotlib.pyplot as plt
-import seaborn as sns
+import math
+import random
 from itertools import chain
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import random
-import math
+import seaborn as sns
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.autograd import Variable
 from tqdm import tqdm
+
+from trading import filtered_tickers
+from trading.system import *
 
 
 class ReplayMemory:
@@ -41,17 +43,6 @@ EMBED_DIM = 50  # from the dimensionality-reduced fastText model
 HIDDEN_LAYER = 70  # NN hidden layer size
 ACTION_DIM = 3
 
-# EPISODES = 2000  # number of episodes
-# EPS_START = 0.9  # e-greedy threshold start value
-# EPS_END = 0.05  # e-greedy threshold end value
-# EPS_DECAY = 200  # e-greedy threshold decay
-# # GAMMA = 0.99  # Q-learning discount factor
-# LR = 0.001  # NN optimizer learning rate
-# HIDDEN_LAYER = 128  # NN hidden layer size
-# BATCH_SIZE = 16  # Q-learning batch size
-# TARGET_UPDATE = 100  # frequency of target update
-# BUFFER_SIZE = 100  # capacity of the replay buffer
-
 # if gpu is to be used
 # use_cuda = torch.cuda.is_available()
 use_cuda = False
@@ -59,6 +50,15 @@ FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 ByteTensor = torch.cuda.ByteTensor if use_cuda else torch.ByteTensor
 Tensor = FloatTensor
+"""
+TODO: Heavily refactor this
+     - conceal these torch.cuda.*Tensor things
+     - wrap cuda as a param into the agent
+     - remove the STATE_DIM functionality. Each agent should have the option to choose a STATE_DIM
+     - each agent should have the option to choose the network(s) it uses. Possibly importing from another submodule?
+     - add profiling tests to ensure forward/backward passes are fast-ish for the nets
+     - add profiling tests to ensure the RL training loops are highly optimized
+"""
 
 
 if use_cuda:
@@ -103,8 +103,6 @@ class QNetwork(nn.Module):
 
 
 class BaseAgent:
-    #     EPISODES = 2000  # number of episodes
-
     LR = 0.001  # NN optimizer learning rate
 
     BATCH_SIZE = 16  # Q-learning batch size
@@ -136,12 +134,9 @@ class BaseAgent:
         raise NotImplementedError("Needs to be refactored.")
         rl_data = self.history
         rl_data["discount_factor"] = np.power(self.gamma, rl_data.episode - 1)
-        rl_data["discounted_future_reward"] = (
-            rl_data["discount_factor"] * rl_data["rewards"]
-        )
+        rl_data["discounted_future_reward"] = rl_data["discount_factor"] * rl_data["rewards"]
         rl_data = rl_data[["episode", "discounted_future_reward"]]
         rl_data = rl_data.groupby("episode").sum()
-        #         rl_plot = sns.lineplot(data=rl_data, legend=False)
         title = "Cumulative Discounted Rewards over Episodes"
         if len(self.name):
             title = f"Cumulative Discounted Reward for {self.name}"
@@ -156,7 +151,6 @@ class BaseAgent:
     def convert_action(self, action):
         assert action in [0, 1, 2], f"Invalid action: {action}"
         position = action - 1
-        #         assert position in [-1,0,1]
         return position.item()
 
     def train(self, num_tickers=4, episodes_per_ticker=5, **kwargs):
@@ -176,12 +170,12 @@ class BaseAgent:
                 self.history = pd.concat((self.history, history))
         self.history = self.history.reset_index("Date", drop=True)
 
-    def plot_returns(self, ticker):
-        h = self.history
-        roi_data = h[h.ticker == ticker][["date", "episode", "returns"]]
-        plt.title(f"Returns for {ticker}")
-        roi_plot = sns.lineplot(data=h, x="date", y="returns", hue="episode")
-        roi_plot.set_xticklabels(roi_plot.get_xticklabels(), rotation=45)
+    # def plot_returns(self, ticker):
+    #     h = self.history
+    #     roi_data = h[h.ticker == ticker][["date", "episode", "returns"]]
+    #     plt.title(f"Returns for {ticker}")
+    #     roi_plot = sns.lineplot(data=h, x="date", y="returns", hue="episode")
+    #     roi_plot.set_xticklabels(roi_plot.get_xticklabels(), rotation=45)
 
 
 class DQN(BaseAgent):
@@ -259,9 +253,7 @@ class DQN(BaseAgent):
             return
         # random transition batch is taken from experience replay memory
         transitions = self.memory.sample(self.BATCH_SIZE)
-        batch_state, batch_action, batch_next_state, batch_reward, batch_done = zip(
-            *transitions
-        )
+        batch_state, batch_action, batch_next_state, batch_reward, batch_done = zip(*transitions)
         batch_state = Variable(torch.cat(batch_state))
         batch_action = Variable(torch.cat(batch_action))
         batch_reward = Variable(torch.cat(batch_reward))
@@ -322,9 +314,7 @@ class PolicyNetwork(nn.Module):
 
     def sample_from_softmax_policy(self, batch_state):
         batch_logits = self.forward(batch_state).detach()
-        assert not torch.isnan(
-            batch_logits
-        ).any(), f"NaN in policy logits {batch_logits}"
+        assert not torch.isnan(batch_logits).any(), f"NaN in policy logits {batch_logits}"
         batch_size = batch_logits.shape[0]
         actions = torch.empty(batch_size, 1)
         for i in range(batch_size):
@@ -506,9 +496,7 @@ class RewardModel(nn.Module):
 
     def sample_from_softmax_policy(self, batch_state, batch_text):
         batch_logits = self.forward(batch_state, batch_text).detach()
-        assert not torch.isnan(
-            batch_logits
-        ).any(), f"NaN in policy logits {batch_logits}"
+        assert not torch.isnan(batch_logits).any(), f"NaN in policy logits {batch_logits}"
         batch_size = batch_logits.shape[0]
         actions = torch.empty(batch_size, 1)
         for i in range(batch_size):
@@ -590,16 +578,9 @@ class ModelBasedAgent(BaseAgent):
                 for t2 in next_texts:
                     t2_tensor = FloatTensor([t2])
                     self.memory.push(
-                        (
-                            state_tensor,
-                            t1_tensor,
-                            action,  # action is already a tensor
-                            t2_tensor,
-                        )
+                        (state_tensor, t1_tensor, action, t2_tensor,)  # action is already a tensor
                     )
-            self.learn(
-                state_tensor, text_tensor, action, next_state, next_text_tensor, reward
-            )
+            self.learn(state_tensor, text_tensor, action, next_state, next_text_tensor, reward)
             state = next_state
             self.steps_done += 1
             if done:
@@ -607,9 +588,7 @@ class ModelBasedAgent(BaseAgent):
         history = environment.close()
         return history
 
-    def learn(
-        self, state_tensor, text_tensor, action, next_state, next_text_tensor, reward
-    ):
+    def learn(self, state_tensor, text_tensor, action, next_state, next_text_tensor, reward):
         # update Transition
         next_state_from_seq = FloatTensor([next_state[-5:]])
         predicted_next_state = self.T(state_tensor)
@@ -619,9 +598,7 @@ class ModelBasedAgent(BaseAgent):
         self.T_opt.step()
 
         # update Reward
-        predicted_reward = (
-            self.R(state_tensor, text_tensor).gather(1, action).squeeze(1)
-        )
+        predicted_reward = self.R(state_tensor, text_tensor).gather(1, action).squeeze(1)
         reward_tensor = FloatTensor([reward])
         R_loss = F.smooth_l1_loss(predicted_reward, reward_tensor)
         self.R_opt.zero_grad()
@@ -631,10 +608,7 @@ class ModelBasedAgent(BaseAgent):
         # update Q-net
         q = self.Q(state_tensor, text_tensor).gather(1, action).squeeze(0)
         next_state_tensor = FloatTensor([next_state])
-        future_q = (
-            reward
-            + self.gamma * self.Q(next_state_tensor, next_text_tensor).max(dim=1)[0]
-        )
+        future_q = reward + self.gamma * self.Q(next_state_tensor, next_text_tensor).max(dim=1)[0]
         Q_loss = F.smooth_l1_loss(q, future_q.detach())
         self.Q_opt.zero_grad()
         Q_loss.backward()
@@ -652,14 +626,10 @@ class ModelBasedAgent(BaseAgent):
         batch_next_text = Variable(torch.cat(batch_next_text))
 
         batch_next_state = self.T.next_state(batch_state).detach()
-        batch_reward = (
-            self.R(batch_state, batch_text).detach().gather(1, batch_action).squeeze(1)
-        )
+        batch_reward = self.R(batch_state, batch_text).detach().gather(1, batch_action).squeeze(1)
 
         # current Q values are estimated by NN for all actions
-        current_q_values = (
-            self.Q(batch_state, batch_text).gather(1, batch_action).squeeze()
-        )
+        current_q_values = self.Q(batch_state, batch_text).gather(1, batch_action).squeeze()
         simulated_q_values = self.Q(batch_next_state, batch_next_text).max(dim=1)[0]
         future_q = batch_reward + self.gamma * simulated_q_values
         simulated_q_loss = F.smooth_l1_loss(current_q_values, future_q.detach())
