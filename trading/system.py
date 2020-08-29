@@ -42,7 +42,7 @@ TODO: Heavily refactor this
 class TradingEnv(gym.Env):
     INITIAL_BALANCE = 10
     TRANSACTION_COST = 0.0001  # per share
-    WINDOW_SIZE = 14
+
     expire_after = datetime.timedelta(days=14)
     session = requests_cache.CachedSession(
         cache_name="cache", backend="sqlite", expire_after=expire_after
